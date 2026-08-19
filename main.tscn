@@ -1,0 +1,38 @@
+[gd_scene load_steps=8 format=3]
+
+[ext_resource type="Script" path="res://main.gd" id="1_main"]
+[ext_resource type="Environment" path="res://environment/neon_environment.tres" id="2_env"]
+[ext_resource type="Script" path="res://terrain/terrain.gd" id="3_terrain"]
+[ext_resource type="Resource" path="res://terrain/fields/world_field.tres" id="4_field"]
+[ext_resource type="Script" path="res://effects/explosion_director.gd" id="5_fx"]
+[ext_resource type="PackedScene" path="res://tank/tank.tscn" id="6_tank"]
+[ext_resource type="PackedScene" path="res://UI/UI.tscn" id="7_ui"]
+
+[node name="Root" type="Node"]
+script = ExtResource("1_main")
+
+[node name="WorldEnvironment" type="WorldEnvironment" parent="."]
+environment = ExtResource("2_env")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.866025, -0.353553, 0.353553, 0, 0.707107, 0.707107, -0.5, -0.612372, 0.612372, 0, 80, 0)
+light_color = Color(0.85, 0.72, 1, 1)
+light_energy = 0.9
+shadow_enabled = true
+directional_shadow_max_distance = 320.0
+
+[node name="Terrain" type="Node3D" parent="."]
+script = ExtResource("3_terrain")
+chunk_resolution = 24
+voxel_size = 2.0
+chunks_x = 4
+chunks_y = 2
+chunks_z = 4
+field = ExtResource("4_field")
+
+[node name="Effects" type="Node3D" parent="."]
+script = ExtResource("5_fx")
+
+[node name="Tank" parent="." instance=ExtResource("6_tank")]
+
+[node name="UI" parent="." instance=ExtResource("7_ui")]

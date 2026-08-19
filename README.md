@@ -1,68 +1,98 @@
 # psychedelic-tank-game
-protoype!
-# tank-game-3d – Powered by Godot 4
-_prototyping a 3d game_
 
-A minimalist prototype inspired by *Wild Metal Country* and *Deep Rock Galactic*  
+_prototyping a 3d game_ — Godot 4.7, GDScript.
+
+A minimalist prototype inspired by *Wild Metal Country* and *Deep Rock Galactic*.
 🧠 Procedural terrain meets chunky tank combat and dynamic environment destruction.
 
 ---
 
-## 🚀 Features
+## 🚀 Core mechanics (built)
 
-| Feature              | Description                                                                 |
-|----------------------|-----------------------------------------------------------------------------|
-| 🌄 Procedural Hills  | Uses OpenSimplexNoise to generate undulating terrain via mesh deformation. |
-| 🛞 Tank Physics      | Simple RigidBody3D or CharacterBody3D controller with turret rotation.     |
-| 💥 Fireable Shells   | Instanced projectile scenes with collision detection and explosion effects.|
-| 🧨 Destructible World| Voxel-style terrain or GridMap tiles that react to shell impacts.          |
+| Feature | How it works |
+|---|---|
+| 🌄 Procedural hills | fBm Perlin heightmap expressed as a signed distance field (`terrain/sdf/SDFHills.gd`), meshed by CPU marching cubes. |
+| 💥 Destructible world | A shell subtracts a sphere from the shared field and only the chunks it reaches are re-meshed (`Terrain.carve()`). Real holes, not dents — overhangs and see-through gaps included. |
+| 🛞 Tank physics | `CharacterBody3D` with drag-limited drive, speed-scaled steering, boost and handbrake. The body only yaws; the visible lean over slopes is applied to the hull mesh, so input never stops meaning what it says. |
+| 🎯 Turret | Aimed in **world space**, so the gun holds its target while the hull turns underneath it. Camera shares the gun's elevation. |
+| 🧨 Fireable shells | Raycast-swept rather than simulated, so a 95 m/s shell cannot tunnel through a crater lip. Impact point is exact, because it is the centre of the crater. |
+| 🌈 Neon terrain | World-space triplanar grid, height-driven hue ramp and rim glow (`terrain/shaders/neon_terrain.gdshader`), with a trip mode on `F`. |
 
----
-
-## 🛠 Tech Stack
-
-- **Engine:** Godot 4.x
-- **Language:** GDScript
-- **Plugins/Tools:**
-  - [Gaea plugin](https://github.com/Zylann/godot-gaea) (optional for terrain sculpting)
-  - FastNoiseLite or OpenSimplexNoise for procedural effects
-  - CSG or GridMap for destructibility
+Everything talks through the `GameEvents` bus: the shell does not know the terrain exists,
+and the terrain does not know what hit it.
 
 ---
 
-## 🎮 Controls (Planned)
+## 🎮 Controls
 
-| Input         | Action             |
-|---------------|--------------------|
-| `WASD`        | Tank movement      |
-| `Mouse`       | Turret aim         |
-| `Left Click`  | Fire shell         |
-| `Spacebar`    | Boost / Brake      |
+| Input | Action |
+|---|---|
+| `W` / `S` | Drive forward / reverse |
+| `A` / `D` | Steer |
+| `Space` | Boost |
+| `Shift` | Handbrake |
+| `Mouse` | Turret aim |
+| `Left Click` | Fire shell |
+| `R` | Respawn (also restores the terrain) |
+| `F` | Trip mode |
+| `T` | Toggle the controls overlay |
+
+Gamepad is bound in parallel: left stick drives, right stick aims, triggers boost and brake,
+`A` fires.
 
 ---
 
-## 🧪 Prototype Milestones
+## 🛠 Tech
 
-### ✅ Week 1: Core Setup
+- **Engine:** Godot 4.7 (mono build), Jolt physics, D3D12
+- **Terrain:** CPU marching cubes over a shared SDF — ported from
+  [`../flying-game-prototype`](../flying-game-prototype) (repo name: `marching-cubes-prototype`)
+- **No plugins.** FastNoiseLite and `ArrayMesh` are enough.
+
+---
+
+## 🤖 Working on this project
+
+This repo carries the same agent pipeline as the prototype it came from. **Read `CLAUDE.md`
+first** — it is the operational contract, and several of the traps in it will make a change
+look correct when it is not.
+
+```bash
+.claude/scripts/gd.sh --headless --quit-after 120            # compile
+.claude/scripts/gd.sh --headless -- --harness-check-resources # resources
+.claude/scripts/newest-log.sh                                 # newest session log
+```
+
+- `/build <task>` runs the Doer/Reviewer loop. One per session — the budgets do not reset.
+- `/source-model <thing>` finds CC0 assets and hands back links; downloading is a human step.
+- `/consolidate` folds `.claude/learnings/` into the pipeline, in a fresh session.
+- The reasoning behind every rule lives in `.claude/pipeline-notes.md`, which is not
+  auto-loaded.
+
+Ask the running game questions rather than assuming:
+
+```bash
+.claude/scripts/gd.sh --headless -- --harness-eval="scene.chunks_total" --harness-eval="scene.terrain_triangles"
+```
+
+---
+
+## 🧪 Milestones
+
+### ✅ Core setup
 - [x] Procedural terrain generation
 - [x] Basic tank movement & camera
 - [x] Fireable shells
 
-### ⏳ Week 2: Destructibility
-- [ ] Voxel or chunk-based terrain damage
-- [ ] Particle and sound feedback
+### ✅ Destructibility
+- [x] Chunk-based terrain damage
+- [ ] Particle and sound feedback — particles and flash done, **no audio yet**
 - [ ] Environmental hazards
 
-### 🚧 Week 3+: Expansion Ideas
-- Advanced terrain shaders (neon digital tron-esque?)
-- Time dilation / trippy effects  
-- Symbolic enemies / dream logic  
-
----
-
-## 📸 Screenshots
-
-*Coming soon!*
+### 🚧 Next
+- Enemy tanks and a reason to shoot them
+- Time dilation to go with the trip mode
+- Terrain that remembers damage across a reset
 
 ---
 
@@ -71,15 +101,8 @@ A minimalist prototype inspired by *Wild Metal Country* and *Deep Rock Galactic*
 - [Wild Metal Country (Rockstar)](https://www.youtube.com/watch?v=XEwILwkeQqE)
 - [Deep Rock Galactic](https://www.deeprockgalactic.com/)
 - [Procedural Destruction in Godot](https://www.youtube.com/watch?v=FgF3oFrAwUY)
-
-https://godotshaders.com/shader/scifi-shield/
-https://www.shadertoy.com/view/tsScRK
----
-
-## 🧠 Want to Contribute?
-
-This is an experimental playground. PRs, ideas, and surreal twists welcome.  
-Let’s bend reality and blast terrain.
+- [Sci-fi shield shader](https://godotshaders.com/shader/scifi-shield/)
+- [Shadertoy tsScRK](https://www.shadertoy.com/view/tsScRK)
 
 ---
 
@@ -91,5 +114,5 @@ MIT
 
 ## 🌌 Author(s)
 
-Ali Bhatti // Designed with Copilot  
+Ali Bhatti // Designed with Copilot
 Feel free to fork, remix, and prototype your own version!

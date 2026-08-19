@@ -1,0 +1,17 @@
+# Godot 4+ specific ignores
+.godot/
+/android/
+
+# Byte-cache from the pipeline hooks, which are python run on every tool call.
+__pycache__/
+
+# Downloaded asset packs land in assets/incoming/ and are re-downloadable from the URL in
+# their sidecar - a single stylised nature pack ran to 118M in the project this pipeline
+# came from, mostly duplicate format copies nothing imports.
+# The sidecars themselves stay tracked: a provenance record outside version control is
+# pointless, and they are the only thing connecting a file on disk to where it came from.
+# .gdignore is tracked so the fence exists before the next pack is ever unzipped here.
+assets/incoming/*
+!assets/incoming/.gdignore
+!assets/incoming/*.source.json
+!assets/incoming/*.candidates.json

@@ -1,0 +1,70 @@
+{
+  "_note": "Which sites the modeller may draw from. TWO lists, one direction of travel: the agent reads `approved` and may APPEND to `candidates`, but may never write to `approved`. Promotion is a user action - one entry moved by hand, visible in a diff. An agent that edits its own allow list does not have one. Same shape, and the same reason, as settings.json versus settings.local.json. PROMOTION IS TWO EDITS: move the entry here, and add a matching `WebFetch(domain:...)` to settings.json's allow list, which mirrors this `approved` list. Without the second, the site is vetted but still prompts on every fetch - and that prompt is what used to get answered with 'always allow' into the untracked settings.local.json. See settings.json's _web_note.",
+
+  "_licence_note": "CC0 only, for now. No CC-BY, no share-alike, no 'free for personal use', no 'royalty free' without a named licence. CC0 obliges nothing, which means provenance can rot without anyone getting hurt - widen this and the sidecars stop being a nicety and start being a legal requirement with a maintenance cost for the life of the project. Widen deliberately, not by drift.",
+
+  "_search_note": "`search_hint` is a query template, not a parser. Deliberately: site-specific HTML parsing is the thing that breaks on someone else's release schedule, and the thing a dedicated backend would replace. Policy lives here; the transport stays generic.",
+
+  "approved": [
+    {
+      "site": "polyhaven.com",
+      "name": "Poly Haven",
+      "licence": "CC0",
+      "carries": ["models", "textures", "hdris"],
+      "search_hint": "site:polyhaven.com/a/ <query>",
+      "formats": ["gltf", "glb", "fbx", "blend"],
+      "notes": "Realistic PBR, high quality, modest catalogue (hundreds not thousands). Site-wide CC0 with no per-asset exceptions, so the licence question is genuinely settled here. Offers multiple texture resolutions - prefer 2k unless the prop is hero-scale."
+    },
+    {
+      "site": "kenney.nl",
+      "name": "Kenney",
+      "licence": "CC0",
+      "carries": ["models", "textures", "audio", "ui"],
+      "search_hint": "site:kenney.nl/assets <query>",
+      "formats": ["obj", "fbx", "gltf", "blend"],
+      "notes": "Low-poly, stylised, game-ready. Distributed as PACKS rather than single models, so a hit usually means downloading fifty props to use one - say so in the shortlist, it changes the download size a lot. Site-wide CC0."
+    },
+    {
+      "site": "quaternius.com",
+      "name": "Quaternius",
+      "licence": "CC0",
+      "carries": ["models", "animations"],
+      "search_hint": "site:quaternius.com <query>",
+      "formats": ["gltf", "fbx", "blend"],
+      "notes": "Stylised low-poly packs. The best of these sources for RIGGED and ANIMATED creatures and characters - check here first for anything that has to move. Site-wide CC0."
+    },
+    {
+      "site": "ambientcg.com",
+      "name": "ambientCG",
+      "licence": "CC0",
+      "carries": ["textures", "materials", "hdris", "models"],
+      "search_hint": "site:ambientcg.com <query>",
+      "formats": ["gltf", "fbx", "blend", "obj"],
+      "notes": "Overwhelmingly materials and textures; the 3D model section is small. Worth searching for surfaces, rarely worth searching for props. Site-wide CC0."
+    },
+    {
+      "site": "sketchfab.com",
+      "name": "Sketchfab",
+      "licence": "MIXED - confirm per asset",
+      "carries": ["models", "animations"],
+      "search_hint": "site:sketchfab.com <query> CC0",
+      "formats": ["gltf", "glb", "fbx", "usdz"],
+      "notes": "By far the largest pool, and the only one here with NO site-level licence - every asset carries its own and most are not CC0. Confirm on the asset page itself, every time. Downloading requires an account, which is the user's to create, not ours. Treat an unconfirmed licence as a disqualification, not a maybe."
+    }
+  ],
+
+  "_candidates_note": "Sites the modeller met while searching and nobody has vetted. It appends here with evidence - what it found, what licence the pages carried, how often the domain came up. Nothing is drawn from this list until a human moves an entry into `approved`.",
+
+  "candidates": [
+    {
+      "site": "poly.pizza",
+      "name": "Poly Pizza",
+      "licence_observed": "Per-asset, stated on the asset page. Both pages checked read 'Public Domain (CC0)' / 'Creative Commons CC0'.",
+      "carries": ["models"],
+      "formats_observed": ["gltf", "fbx"],
+      "met_during": "trees-and-plants shortlist, 2026-08-13",
+      "evidence": "Came up repeatedly while searching Quaternius nature packs. Appears to be a re-host rather than an original source: it carries Quaternius and Kenney work credited to the original author, and exposes it model-by-model as well as by bundle - so the same CC0 assets can be pulled one at a time instead of as a 300-file zip, which is the only reason it is interesting here. Pages checked: /bundle/Stylized-Nature-MegaKit-T34GZFA0fm (states Public Domain (CC0), shows 68 models, credits Quaternius) and /m/Zt62gceKXZ ('Pine' by Quaternius, states Creative Commons CC0, offers FBX and GLTF). GLB was named on neither. Site copy says no login is needed to download.",
+      "unverified": "Whether the re-hosted licence always matches what the original author states, and whether any non-CC0 work is mixed in. Licence is shown per asset rather than site-wide, so it would need confirming per asset the way Sketchfab does. That is the question worth settling before promotion."
+    }
+  ]
+}

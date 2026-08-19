@@ -1,0 +1,10 @@
+# Screenshots the agents produce while testing.
+#
+# Ignored because they are evidence for one run, not project files.
+#
+# They live under .claude/ rather than anywhere else in the tree because the
+# repo root is also the Godot project root: a .png sitting in the project gets
+# imported as a texture and shows up as project churn. .claude/.gdignore fences
+# this whole directory from the importer.
+*
+!.gitignore

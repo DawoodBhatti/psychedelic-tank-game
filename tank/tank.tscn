@@ -1,0 +1,103 @@
+[gd_scene load_steps=10 format=3]
+
+[ext_resource type="Script" path="res://tank/tank.gd" id="1_tank"]
+
+[sub_resource type="StandardMaterial3D" id="Mat_hull"]
+albedo_color = Color(0.09, 0.11, 0.16, 1)
+metallic = 0.6
+roughness = 0.42
+emission_enabled = true
+emission = Color(0.0, 0.75, 0.9, 1)
+emission_energy_multiplier = 0.55
+
+[sub_resource type="StandardMaterial3D" id="Mat_track"]
+albedo_color = Color(0.04, 0.04, 0.06, 1)
+metallic = 0.2
+roughness = 0.85
+
+[sub_resource type="StandardMaterial3D" id="Mat_turret"]
+albedo_color = Color(0.12, 0.09, 0.18, 1)
+metallic = 0.7
+roughness = 0.35
+emission_enabled = true
+emission = Color(0.95, 0.15, 0.75, 1)
+emission_energy_multiplier = 0.8
+
+[sub_resource type="BoxMesh" id="Mesh_hull"]
+material = SubResource("Mat_hull")
+size = Vector3(2.6, 0.9, 4.2)
+
+[sub_resource type="BoxMesh" id="Mesh_track"]
+material = SubResource("Mat_track")
+size = Vector3(0.7, 0.8, 4.6)
+
+[sub_resource type="CylinderMesh" id="Mesh_turret"]
+material = SubResource("Mat_turret")
+top_radius = 0.85
+bottom_radius = 1.05
+height = 0.75
+
+[sub_resource type="CylinderMesh" id="Mesh_barrel"]
+material = SubResource("Mat_turret")
+top_radius = 0.16
+bottom_radius = 0.2
+height = 3.0
+
+[sub_resource type="BoxShape3D" id="Shape_body"]
+size = Vector3(3.2, 1.5, 4.6)
+
+[node name="Tank" type="CharacterBody3D"]
+collision_layer = 2
+collision_mask = 1
+floor_max_angle = 0.9
+script = ExtResource("1_tank")
+
+[node name="CollisionShape3D" type="CollisionShape3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.75, 0)
+shape = SubResource("Shape_body")
+
+[node name="HullPivot" type="Node3D" parent="."]
+
+[node name="HullMesh" type="MeshInstance3D" parent="HullPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.85, 0)
+mesh = SubResource("Mesh_hull")
+
+[node name="TrackLeft" type="MeshInstance3D" parent="HullPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, -1.4, 0.42, 0)
+mesh = SubResource("Mesh_track")
+
+[node name="TrackRight" type="MeshInstance3D" parent="HullPivot"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 1.4, 0.42, 0)
+mesh = SubResource("Mesh_track")
+
+[node name="Turret" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.3, 0)
+
+[node name="TurretMesh" type="MeshInstance3D" parent="Turret"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.37, 0)
+mesh = SubResource("Mesh_turret")
+
+[node name="Barrel" type="Node3D" parent="Turret"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.4, -0.7)
+
+[node name="BarrelMesh" type="MeshInstance3D" parent="Turret/Barrel"]
+transform = Transform3D(1, 0, 0, 0, 0, -1, 0, 1, 0, 0, 0, -1.5)
+mesh = SubResource("Mesh_barrel")
+
+[node name="Muzzle" type="Marker3D" parent="Turret/Barrel"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, -3.1)
+
+[node name="CameraArm" type="SpringArm3D" parent="Turret"]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 1.4, 0)
+collision_mask = 1
+spring_length = 13.0
+margin = 0.5
+
+[node name="Camera3D" type="Camera3D" parent="Turret/CameraArm"]
+far = 3000.0
+fov = 72.0
+
+[node name="GroundProbe" type="RayCast3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+target_position = Vector3(0, -4, 0)
+collision_mask = 1

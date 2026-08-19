@@ -1,0 +1,20 @@
+{
+  "readings": [
+    {
+      "date": "2026-08-19",
+      "label": "transplant baseline",
+      "total": 55049,
+      "files": {
+        "CLAUDE.md": 19491,
+        ".claude/agents/doer.md": 3323,
+        ".claude/agents/modeller.md": 6034,
+        ".claude/agents/reviewer.md": 4593,
+        ".claude/commands/build.md": 5644,
+        ".claude/commands/consolidate.md": 6679,
+        ".claude/commands/source-model.md": 3274,
+        ".claude/commands/usage.md": 773,
+        ".claude/settings.json": 5238
+      }
+    }
+  ]
+}

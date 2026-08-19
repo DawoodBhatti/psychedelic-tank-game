@@ -1,0 +1,195 @@
+{
+  "_comment": "The only settings file. Rules live here; the reasoning behind every allow, deny and hook below lives in .claude/pipeline-notes.md under 'The permission model', which is not auto-loaded. Read it before loosening anything.",
+
+  "permissions": {
+    "allow": [
+      "Bash(git status*)",
+      "Bash(git log*)",
+      "Bash(git diff*)",
+      "Bash(git show*)",
+      "Bash(git branch*)",
+      "Bash(git ls-files*)",
+      "Bash(git rev-parse*)",
+      "Bash(git check-ignore*)",
+      "Bash(git blame*)",
+      "Bash(git add*)",
+      "Bash(git commit*)",
+
+      "Bash(ls *)",
+      "Bash(wc *)",
+      "Bash(diff *)",
+      "Bash(sort *)",
+      "Bash(uniq *)",
+      "Bash(cut *)",
+      "Bash(basename *)",
+      "Bash(dirname *)",
+      "Bash(date*)",
+      "Bash(pwd*)",
+      "Bash(echo *)",
+      "Bash(test *)",
+
+      "Bash(python .claude/scripts/*)",
+      "Bash(python .claude/hooks/*)",
+      "Bash(bash .claude/scripts/*)",
+      "Bash(.claude/scripts/*)",
+      "Bash(./.claude/scripts/*)",
+
+      "Read(//c/Users/dabha/AppData/Roaming/Godot/**)",
+      "Read(//c/Users/dabha/AppData/Local/Temp/claude/**)",
+
+      "WebSearch",
+      "WebFetch(domain:polyhaven.com)",
+      "WebFetch(domain:kenney.nl)",
+      "WebFetch(domain:quaternius.com)",
+      "WebFetch(domain:ambientcg.com)",
+      "WebFetch(domain:sketchfab.com)"
+    ],
+
+    "deny": [
+      "Read(//c/Users/dabha/.ssh/**)",
+      "Read(//c/Users/dabha/.aws/**)",
+      "Read(//c/Users/dabha/.gnupg/**)",
+      "Read(//c/Users/dabha/AppData/**/User Data/**)",
+      "Read(**/.env)",
+      "Read(**/.env.*)",
+
+      "Bash(curl *)",
+      "Bash(wget *)",
+      "Bash(curl * | bash)",
+      "Bash(curl * | sh)",
+
+      "Bash(reg *)",
+      "Bash(reg.exe *)",
+      "Bash(schtasks *)",
+      "Bash(netsh *)",
+      "Bash(sc *)",
+      "Bash(sc.exe *)",
+      "Bash(wmic *)",
+      "Bash(bcdedit *)",
+      "Bash(shutdown*)",
+      "Bash(format*)",
+
+      "Bash(winget *)",
+      "Bash(choco *)",
+      "Bash(pip install *)",
+      "Bash(npm install -g*)",
+      "Bash(npm i -g*)",
+
+      "Bash(sudo *)",
+      "Bash(runas *)",
+
+      "Bash(python -)",
+      "Bash(python3 -)",
+      "Bash(py -)",
+
+      "Bash(git push --force*)",
+      "Bash(git push -f*)",
+      "Bash(git reset --hard*)",
+      "Bash(git clean -fd*)",
+
+      "Bash(rm -rf /*)",
+      "Bash(rm -rf ~*)",
+      "Bash(rm -rf C:*)",
+
+      "PowerShell(Remove-Item *)",
+      "PowerShell(Set-ItemProperty *)",
+      "PowerShell(New-ItemProperty *)",
+      "PowerShell(Set-ExecutionPolicy *)",
+      "PowerShell(Register-ScheduledTask *)",
+      "PowerShell(Invoke-WebRequest *)",
+      "PowerShell(Invoke-Expression *)",
+      "PowerShell(Start-Process *)",
+      "PowerShell(Stop-Computer *)"
+    ]
+  },
+
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/run.sh check_guards",
+            "timeout": 15,
+            "statusMessage": "Checking that the guards are armed..."
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Agent|SendMessage",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/run.sh count_agent_spawns",
+            "timeout": 15,
+            "statusMessage": "Checking iteration budget..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/run.sh guard_git_push",
+            "timeout": 15,
+            "statusMessage": "Checking git push rules..."
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/run.sh count_godot_launches",
+            "timeout": 15,
+            "statusMessage": "Checking engine-launch budget..."
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/run.sh guard_vacuous_eval",
+            "timeout": 15,
+            "statusMessage": "Checking the eval can find anything..."
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/run.sh guard_bash_decoration",
+            "timeout": 15,
+            "statusMessage": "Checking the command is not decorated..."
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/run.sh guard_write_path",
+            "timeout": 15,
+            "statusMessage": "Checking write path..."
+          }
+        ]
+      },
+      {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/run.sh guard_image_read",
+            "timeout": 15,
+            "statusMessage": "Checking image-read rule..."
+          }
+        ]
+      },
+      {
+        "matcher": "Bash|Read|Edit|Write|Agent|SendMessage",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/run.sh warn_session_cost",
+            "timeout": 15,
+            "statusMessage": "Checking session cost..."
+          }
+        ]
+      }
+    ]
+  }
+}
