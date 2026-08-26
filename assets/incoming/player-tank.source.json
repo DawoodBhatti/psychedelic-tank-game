@@ -1,0 +1,19 @@
+{
+  "title": "Heavy Tank [extra low poly, RTS]",
+  "source_url": "https://opengameart.org/content/heavy-tankextra-low-poly-rts",
+  "site": "opengameart.org",
+  "approved_site": false,
+  "licence": "CC0",
+  "licence_seen_at": "https://opengameart.org/content/heavy-tankextra-low-poly-rts",
+  "url_verified": true,
+  "format": ["glb", "blend"],
+  "rigged": null,
+  "clips": null,
+  "tri_count": null,
+  "tri_count_stated": false,
+  "thumbnail_url": null,
+  "notes": "OFF-LIST SITE (opengameart.org, licence is per-submission and this one reads CC0). The ONLY candidate here that names .glb - page tags are 'tank, heavy vehicle, rts, command and conquer, tiberian sun, .blend, glb' and the single attachment is heavy_tank00.zip containing .blend and .glb. Author 32kda, posted 14 June 2026. Page states '792 vers, ~1100 faces' - that is vertices and FACES, not triangles, so tri_count is left null rather than doubled by guesswork. Description: 'Inspired by C&C/Tiberain Sun/Generals game series ... UV-unwrapped but textured in 3 different colors only'. Chunky RTS silhouette, reads well at distance, which is the requested style. NOTHING on the page indicates whether the turret is a separate object - unconfirmed, and that is the risk on the top format pick.",
+  "chosen_at": "2026-08-25",
+  "chosen_for": "Player tank hull + turret. See docs/foundation-plan.md, session G (art pass).",
+  "open_question": "Whether the turret is a separate node from the hull. NOT stated on the source page and NOT verified by anyone yet. The game aims the turret in world space independently of the hull (see tank/tank.gd), so a fused mesh needs splitting in Blender before it can be used. Resolve this by opening the .glb BEFORE session G plans around it - if it is fused, the fallback candidates are in player-tank.candidates.json, and Recon Tank is the one with stated evidence of 15 separate objects."
+}

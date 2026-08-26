@@ -1,0 +1,38 @@
+{
+  "title": "OpenTopography - NASADEM Global Digital Elevation Model (30 m)",
+  "source_url": "https://portal.opentopography.org/raster?opentopoID=OTSDEM.032021.4326.2",
+  "site": "portal.opentopography.org",
+  "approved_site": false,
+  "licence": "OpenTopography's own Use License field reads verbatim: \"Not Provided\". The underlying NASA product page states the data is \"openly shared, without restriction, in accordance with the EOSDIS Data Use and Citation Guidance\".",
+  "licence_seen_at": "https://www.earthdata.nasa.gov/data/catalog/lpcloud-nasadem-hgt-001",
+  "url_verified": true,
+  "format": ["geotiff", "img", "arc_ascii_grid"],
+  "rigged": null,
+  "clips": null,
+  "tri_count": null,
+  "tri_count_stated": false,
+  "thumbnail_url": null,
+  "notes": "OFF-LIST site. The only shortlisted route that covers Scotland. Server-side bounding-box crop with a map selector and manual Xmin/Ymin/Xmax/Ymax entry; guest download, no account. Bit depth NOT stated on the page. OpenTopography prints a citation/acknowledgement string (NASA JPL, NASADEM Merged DEM Global 1 arc second V001, DOI https://doi.org/10.5069/G93T9FD9). The sibling SRTM GL1 30 m dataset is identical in every respect and also reads 'Use License: Not Provided'.",
+
+  "chosen_at": "2026-08-25",
+  "chosen_for": "Base ground silhouette for the level. See docs/foundation-plan.md, sessions B and C.",
+
+  "crop_plan": {
+    "intent": "Crop a REAL glen roughly 2 km across and compress it into the 192 m game world. Do NOT map the real world 1:1 - at 30 m/px that would give ~6x6 samples and a featureless ramp.",
+    "target": "Glen Coe or Glen Etive, Scottish Highlands. Wild Metal Country was made in Dundee and its landscapes read as highlands.",
+    "approximate_centre": "Glen Coe is near 56.67 N, -5.03 E. APPROXIMATE - frame the exact crop by eye in OpenTopography's map selector, do not trust these numbers as surveyed.",
+    "span_arithmetic": "At 56.67 N: 1 deg latitude ~= 111 km, so 2 km ~= 0.018 deg. 1 deg longitude ~= 111 * cos(56.67) ~= 61 km, so 2 km ~= 0.033 deg. A 2 km box is therefore about 0.018 deg tall and 0.033 deg wide - note it is NOT square in degrees.",
+    "expected_raster": "~67 x 67 px for a 2 km crop at 30 m/px.",
+    "compression": "~10.4x horizontal into the 192 m footprint.",
+    "vertical_warning": "Real relief in Glen Coe is several hundred metres. Compressed into a world whose current terrain has ~17 m of relief (SDFHills amplitude 22), height_scale on SDFHeightmap will need to be a SMALL fraction of real - order 0.02-0.05. Tune it against Terrain.surface_height_range(), which returns measured min/max/mean, rather than guessing."
+  },
+
+  "conversion_required": {
+    "why": "Godot reads PNG, EXR and HDR. It does NOT read GeoTIFF, IMG, Arc ASCII or HGT. A conversion sits between the download and the engine.",
+    "command": "gdal_translate -ot UInt16 -scale -of PNG <input>.tif assets/incoming/valley-heightmap.png",
+    "alternative": "QGIS export, if GDAL is not installed standalone.",
+    "bit_depth": "Must end up 16-bit. An 8-bit PNG gives 256 height steps and bands visibly on smooth slopes. No source page stated the input bit depth, so verify the output rather than assuming the -ot UInt16 flag had something to preserve."
+  },
+
+  "licence_note": "The 'Not Provided' on OpenTopography is an EMPTY FIELD on a redistributor, not a stated restriction; the underlying product is NASA's and NASA states it is openly shared without restriction. Recorded as two separate facts rather than resolved into one. OpenTopography additionally REQUESTS acknowledgement and a DOI citation - a request accompanying public-domain data, not a licence obligation. Both stated here so the decision is visible later rather than re-litigated."
+}

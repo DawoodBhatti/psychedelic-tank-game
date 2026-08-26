@@ -64,7 +64,108 @@
       "formats_observed": ["gltf", "fbx"],
       "met_during": "trees-and-plants shortlist, 2026-08-13",
       "evidence": "Came up repeatedly while searching Quaternius nature packs. Appears to be a re-host rather than an original source: it carries Quaternius and Kenney work credited to the original author, and exposes it model-by-model as well as by bundle - so the same CC0 assets can be pulled one at a time instead of as a 300-file zip, which is the only reason it is interesting here. Pages checked: /bundle/Stylized-Nature-MegaKit-T34GZFA0fm (states Public Domain (CC0), shows 68 models, credits Quaternius) and /m/Zt62gceKXZ ('Pine' by Quaternius, states Creative Commons CC0, offers FBX and GLTF). GLB was named on neither. Site copy says no login is needed to download.",
-      "unverified": "Whether the re-hosted licence always matches what the original author states, and whether any non-CC0 work is mixed in. Licence is shown per asset rather than site-wide, so it would need confirming per asset the way Sketchfab does. That is the question worth settling before promotion."
+      "unverified": "Whether the re-hosted licence always matches what the original author states, and whether any non-CC0 work is mixed in. Licence is shown per asset rather than site-wide, so it would need confirming per asset the way Sketchfab does. That is the question worth settling before promotion.",
+      "second_sighting": "player-tank shortlist, 2026-08-25. Same pattern held. Four Quaternius 'Tank' pages fetched (/m/jWS1CLA0RO, /m/FA5daiyZQq, /m/cW3zvvkMOM, /m/uYHpj7lz1J); all four read 'Public Domain (CC0)' and all four offered 'FBX/GLTF format'. GLB was again named on none of them, and none stated a triangle count, a description or any node-structure detail - the pages are metadata-thin. Notable: quaternius.com's own Animated Tanks Pack page offers only FBX/OBJ/Blend, so the glTF on Poly Pizza is a CONVERSION this re-host performed, not something the original author published. Whether those conversions are faithful is a second unverified question on top of the licence one."
+    },
+    {
+      "site": "opengameart.org",
+      "name": "OpenGameArt",
+      "licence_observed": "MIXED, per submission, shown in a 'License(s)' field on the asset page. Of the eight tank/turret pages fetched: four read CC0, one read 'CC-BY 4.0 and CC0' listed together as a dual offer, one read CC-BY 4.0, one read CC-BY-SA 3.0. So it behaves like Sketchfab, not like Poly Haven - the licence must be confirmed per asset, every time.",
+      "carries": ["models", "textures", "sprites", "audio"],
+      "formats_observed": ["blend", "obj", "fbx", "glb", "3ds", "stl"],
+      "met_during": "player-tank shortlist, 2026-08-25",
+      "evidence": "Came up repeatedly and was the only source in this run that produced a CC0 tank naming .glb. Pages checked: /content/heavy-tankextra-low-poly-rts (CC0, author 32kda, zip of .blend + .glb, states '792 vers, ~1100 faces'), /content/recon-tank (licence field lists BOTH CC-BY 4.0 and CC0, .obj + .blend, states '970 tris 962 verts 15 objects'), /content/low-poly-tank-assets-0 (CC0, 14.6 MB zip, five formats), /content/tank-3 (CC0, .blend only), /content/low-poly-vehicles-pack (CC0, no military vehicles), /content/cc0-3d-vehicles-and-cars (a CC0 collection page by josepharaoh99 aggregating many military vehicles), /content/low-poly-turret-pack (CC-BY 4.0 - rejected), /content/sci-fi-rotary-turret (CC-BY 4.0 - rejected). Pages state real numbers more often than the other sources do: tri counts, vert counts and OBJECT counts, and that object count is the only direct evidence of separable turret/hull anyone published in this run. Downloads are plain attachments with no login.",
+      "unverified": "Whether uploaders' licence claims are checked by anyone, which matters more here than on an author-run site like Quaternius because the uploader is often not the original author - /content/sci-fi-light-tank is openly a rework of someone else's model, and /content/recon-tank offers two licences at once with no statement of which applies to what. glTF/GLB is rare in the catalogue; .blend dominates, so most hits need Blender. No site-wide licence, so promotion would have to carry the same per-asset rule the Sketchfab entry does."
+    },
+    {
+      "site": "portal.opentopography.org",
+      "name": "OpenTopography (portal)",
+      "licence_observed": "Per-dataset, in a 'Use License' field on the datasetMetadata page. US-sourced sets read 'US Government Public Domain' verbatim (3DEP 1/3 arc-second OT.012021.4269.1, 3DEP 1 m OT.012021.4269.3). GLOBAL sets read 'Not Provided' verbatim (NASADEM OT.032021.4326.2, SRTM OT.042013.4326.1) - i.e. the redistributor states no licence for them at all, and the public-domain claim has to come from NASA's own catalogue instead. Every dataset also prints a citation and an acknowledgement string.",
+      "carries": ["dem", "elevation-rasters", "lidar-point-clouds"],
+      "formats_observed": ["geotiff", "img", "arc_ascii_grid", "kmz"],
+      "met_during": "terrain-heightmap (DEM) shortlist, 2026-08-25 - a deliberately off-spec run where the user widened the licence rule to US-government public domain for elevation data only",
+      "evidence": "The only source found with a TRUE server-side bounding-box crop: the raster pages carry a 'Select area of data to process' map plus Xmin/Ymin/Xmax/Ymax entry and return just that extent, so no QGIS/GDAL toolchain is needed. Pages fetched: /raster?opentopoID=OTNED.012021.4269.1 (USGS 1/3 arc-second, '10 meter', guest download, Arc ASCII/GeoTiff/IMG), /raster?opentopoID=OTNED.012021.4269.3 (USGS 1 m), /raster?opentopoID=OTSRTM.082015.4326.1 (SRTM GL1, '30 meter'), /raster?opentopoID=OTSDEM.032021.4326.2 (NASADEM, '30 meter'), plus the three datasetMetadata pages above. ACCESS GATE worth knowing: the 1 m raster page states access is limited to US academics with '.edu addresses' who must log in, plus K-12 teachers, international academics and informal educators by application, or OpenTopography+ members. The 10 m and global pages showed no such gate and offer guest download. No page stated bit depth for any raster, and no page offers PNG or EXR output.",
+      "unverified": "Whether the 'Use License: Not Provided' on the global sets is an editorial gap or a deliberate stance - it is the redistributor declining to state a licence for data whose upstream source says otherwise, and that is exactly the confusion this list exists to catch. Also unverified: whether the 10 m dataset's guest access is stable policy or the same funding-dependent arrangement that currently gates the 1 m one. Note the catalog.data.gov mirror record for the 1 m set tags it https://creativecommons.org/licenses/by/4.0 while its own body text says 'All 3DEP products are public domain' - two licence claims, one dataset."
+    },
+    {
+      "site": "apps.nationalmap.gov",
+      "name": "USGS The National Map - TNM Downloader",
+      "licence_observed": "None readable on the app itself. The licence wording 'All 3DEP products are public domain.' was read on the USGS collection records mirrored at catalog.data.gov, not here.",
+      "carries": ["dem", "elevation-rasters", "topo-maps"],
+      "formats_observed": ["geotiff"],
+      "met_during": "terrain-heightmap (DEM) shortlist, 2026-08-25",
+      "evidence": "/downloader/ returned HTTP 200 and the page title 'TNM Downloader - The National Map' but NO body text - it is a JavaScript application, so a fetch verifies the URL and the identity of the page and nothing else. That is a real limitation for this role: the in-app product list, format menu and any terms cannot be read without a browser. The USGS product side is 3DEP at 1 m, 1/3 arc-second (~10 m) and 1 arc-second (~30 m), US territory only, delivered as pre-staged GeoTIFF tiles rather than an arbitrary crop. No account or API key is involved.",
+      "unverified": "Everything the app itself displays. Also note every www.usgs.gov page tried during this run (the FAQ on costs and restrictions, the 'Download Data & Maps' tool page) returned an EMPTY body to fetch, so usgs.gov as a domain is currently unreadable by this tool and any licence claim sourced from it would have to be taken on memory - which is exactly what the verify rule forbids. catalog.data.gov was the workaround."
+    },
+    {
+      "site": "earthdata.nasa.gov",
+      "name": "NASA Earthdata / LP DAAC catalogue",
+      "licence_observed": "Stated in prose on the product page: NASADEM is 'openly shared, without restriction, in accordance with the EOSDIS Data Use and Citation Guidance'. A DOI citation is given. No CC-style licence identifier is used.",
+      "carries": ["dem", "elevation-rasters", "satellite-data"],
+      "formats_observed": ["hgt", "netcdf4"],
+      "met_during": "terrain-heightmap (DEM) shortlist, 2026-08-25",
+      "evidence": "Page fetched: /data/catalog/lpcloud-nasadem-hgt-001 ('NASADEM Merged DEM Global 1 arc second V001', '30 Meters x 30 Meters', HGT and NetCDF4, DOI 10.5067/MEASURES/NASADEM/NASADEM_HGT.001). lpdaac.usgs.gov/products/nasadem_hgtv001/ 301-redirects here, so the old LP DAAC URLs are dead ends. This is the canonical upstream for the NASADEM that OpenTopography redistributes, and it carries the clearest licence sentence read anywhere on this run. Distribution is whole 1-degree granules - there is NO bounded crop - and an Earthdata Login is linked in the page resources.",
+      "unverified": "Whether Earthdata Login is strictly required is INDICATED by the page linking it, not stated in words, so it is recorded as indicated rather than quoted. Bit depth is not stated for HGT anywhere on the page."
+    },
+    {
+      "site": "catalog.data.gov",
+      "name": "Data.gov catalogue",
+      "licence_observed": "Per-record, and INCONSISTENT. The USGS-authored 3DEP records (1 m, 1/3 arc-second) carry 'All 3DEP products are public domain.' in body text with no separate License field. The OpenTopography-authored mirror of the same 1 m data carries a License field of https://creativecommons.org/licenses/by/4.0. The SRTM 1-arc-second record has no License field at all and only an access level of 'public'.",
+      "carries": ["metadata-records"],
+      "formats_observed": [],
+      "met_during": "terrain-heightmap (DEM) shortlist, 2026-08-25",
+      "evidence": "Not a download site - a metadata catalogue - but it is the only place on this run where US federal licence wording could actually be READ, because www.usgs.gov returns empty bodies to fetch. Records fetched: /dataset/1-meter-digital-elevation-models-dems-usgs-national-map-3dep-downloadable-data-collection, /dataset/1-3rd-arc-second-digital-elevation-models-dems-usgs-national-map-3dep-downloadable-data-co, /dataset/usgs-1-meter-digital-elevation-model (the OpenTopography mirror), /dataset/shuttle-radar-topography-mission-1-arc-second-global.",
+      "unverified": "Which record wins when two records describe the same data with different licence fields. Treat this domain as a place to READ a licence, never as a place to download one."
+    },
+    {
+      "site": "earthexplorer.usgs.gov",
+      "name": "USGS EarthExplorer",
+      "licence_observed": "None stated on the search page. It instead warns 'You are attempting to download licenses data - this requires acknowledgement of an End-User License Agreement.', which is a per-dataset EULA gate, not a licence statement.",
+      "carries": ["dem", "satellite-imagery"],
+      "formats_observed": [],
+      "met_during": "terrain-heightmap (DEM) shortlist, 2026-08-25",
+      "evidence": "The page loads and is the real search/download application, with a map area-of-interest selector (polygon, circle, predefined area) and coordinate entry. It states plainly: 'Note: You must be logged in to download and order scenes.' It is the download route named on the data.gov SRTM 1-arc-second record. Ranked below OpenTopography for this run purely because of the account requirement and because no output format list was readable on the page.",
+      "unverified": "Output formats and bit depths, which are behind the login. Which datasets trigger the EULA prompt and what that EULA says."
+    },
+    {
+      "site": "touchterrain.geol.iastate.edu",
+      "name": "TouchTerrain",
+      "licence_observed": "NONE. No licence, no attribution text and no data-source naming was readable on the page.",
+      "carries": ["dem", "3d-print-models"],
+      "formats_observed": [],
+      "met_during": "terrain-heightmap (DEM) shortlist, 2026-08-25 - REJECTED",
+      "evidence": "Loads, and is a real tool ('a web app for creating 3D printable terrain models') with a browser map selector. Rejected anyway: the page named no DEM source, no output format and no licence, and its stated purpose is 3D-printable meshes rather than heightmap rasters. A tool whose provenance you cannot read is not a source you can vouch for, whatever it can produce.",
+      "unverified": "Everything: sources, formats, whether a raster export exists at all. Would need a second look with a real browser before it could be judged."
+    },
+    {
+      "site": "heightmap.skydark.pl",
+      "name": "Cities Skylines Heightmap Generator (sysoppl)",
+      "licence_observed": "NONE. No licence, no attribution and no named DEM source anywhere on the page.",
+      "carries": ["heightmaps"],
+      "formats_observed": ["png", "raw"],
+      "met_during": "terrain-heightmap (DEM) shortlist, 2026-08-25 - REJECTED",
+      "evidence": "The most-recommended terrain.party replacement in search results, and the closest thing found to a one-click heightmap exporter with a draggable box on a world map. Rejected on the licence rule: the page names no data source and states no licence. Its only visible export control reads 'Dwnload tiles map (Terrain-RGB)', and Terrain-RGB is a web-tile encoding whose upstream is typically a MIX of national DEMs, not a single US-government product - so even the public-domain widening for this run would not cover it without knowing which tiles served which pixels. The sibling host cs.heightmap.skydark.pl, cited in several search results, FAILED DNS RESOLUTION entirely (ENOTFOUND).",
+      "unverified": "The upstream DEM mix, the export bit depth, and whether the GitHub repo (github.com/sysoppl/cities-heightmap) states either. Settle those and it could become the easiest option on this list; until then it fails the first gate."
+    },
+    {
+      "site": "terrain.party",
+      "name": "terrain.party",
+      "licence_observed": "Not readable - the site did not serve content.",
+      "carries": ["heightmaps"],
+      "formats_observed": [],
+      "met_during": "terrain-heightmap (DEM) shortlist, 2026-08-25 - REJECTED, DEAD",
+      "evidence": "Returned HTTP 503 Service Unavailable with no body. This is the tool every forum thread and wiki still points at for real-world heightmap export, so it will keep surfacing in searches - recorded here specifically so a later run does not spend a fetch rediscovering that it is down.",
+      "unverified": "Whether the outage is permanent. Do not recommend it without a fresh 200."
+    },
+    {
+      "site": "coast.noaa.gov",
+      "name": "NOAA Digital Coast - Data Access Viewer",
+      "licence_observed": "Not readable - the page returned only a title, 'Data Access Viewer - Admin'.",
+      "carries": ["dem", "coastal-lidar"],
+      "formats_observed": [],
+      "met_during": "terrain-heightmap (DEM) shortlist, 2026-08-25 - NOT SHORTLISTED",
+      "evidence": "Fetched as a possible second US-government source with a custom-area crop. Like the USGS downloader it is a JavaScript application and served no body text, so nothing about its formats, crop behaviour, account requirement or use constraints could be confirmed. Not shortlisted on that basis alone rather than on any fault - and its holdings are coastal lidar, which is a poor match for an inland upland valley in any case.",
+      "unverified": "All of it. Worth a browser look if a US-government source with a genuine custom crop is ever needed beyond OpenTopography."
     }
   ]
 }
