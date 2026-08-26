@@ -28,15 +28,20 @@ number describes something else. Modified → stop and ask; usually commit or st
 **Run the command** — the session-start `gitStatus` block has been seen naming a file that did
 not exist yet, and stopping on that is a false stop.
 
+**If the gate is "nothing visibly changes", the before batch is the WHOLE harness surface, not
+the part the task appears to be about.** A "before" has one chance — the first edit destroys it
+permanently — and you are the party least able to predict what a refactor will touch.
+`--harness-eval` repeats, so eight names cost the same boot as three. Enumerate them from
+`main.gd`'s header, not from the task.
+
 ## The cycle
 
 1. **Spawn `doer`** with the task, plus any Reviewer feedback from a previous round.
    Require it to report: what it changed, the numbers it relied on, and explicitly what it
    did *not* verify.
 
-   Then check the launches happened: `.claude/scripts/newest-log.sh count`. It proves a
-   **shortfall** and nothing else — never hand a number from it to an agent as a baseline. Its
-   own output says what it cannot answer.
+   Then check the launches happened: `.claude/scripts/newest-log.sh count`, subject to the
+   caveat in CLAUDE.md § Environment about what that number cannot answer.
 
 2. **Spawn `reviewer`** with the original task, the Doer's stated plan and its report.
    The Reviewer needs the intent, not just the diff — it is judging whether the change does

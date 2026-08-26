@@ -117,6 +117,49 @@ day the wrapper landed. This is why `gd.sh` is the only sanctioned way to start 
 why it launches **exactly once per invocation**: a test sequence must be several calls to it
 rather than one script that loops, or the count stops being real.
 
+### The counter over-reports by one per denied engine command
+
+- date: 2026-08-19, folded 2026-08-26
+
+`settings.json` puts four PreToolUse hooks on the `Bash` matcher. `count_godot_launches.py`
+increments its on-disk counter and returns `hooklib.context(...)`, which does not vote;
+`guard_bash_decoration.py` returns `hooklib.deny(...)`. **The deny wins the decision, but the
+increment has already been written, and nothing rolls it back.** Ordering in `settings.json`
+cannot fix it — a hook cannot see another hook's verdict. Observed at scaffold time: a `cd`-
+prefixed `gd.sh` call was denied, no engine started and no `session_*.log` was produced, yet
+the hook reported `1 of 40`; the successful retry reported `2 of 40`, and the count stayed
+exactly one ahead of the truth for the rest of the session.
+
+It fails **safe** — the wall arrives early rather than late — which is why this has not been
+rushed. But the number is documented as authoritative in its own message and in `CLAUDE.md`,
+and `newest-log.sh count` explicitly cannot answer the per-session question, so it is the only
+figure anyone has.
+
+The fix is to move the commit to a `PostToolUse` hook on `Bash`, where the call has actually
+happened, leaving PreToolUse to read, deny at the wall, and report `used + launches` as a
+projection. **One of the two things that blocked it is now measured.** The parent project's
+`2026-08-17-is-the-env-session-id-the-hook-session-id.md` left open whether the id the hooks
+key counters by is the session's own id; it is:
+
+```
+$ echo $CLAUDE_CODE_SESSION_ID          -> 84063494-…-c13c243d2ba8   (= scratchpad path uuid)
+$ ls <temp>/claude-pipeline/godot-launches/
+5e800ec0-…-e5dde2895c57   a2742607-…-ee3f985521af   …
+$ ls <temp>/claude/C--Users-…-psychedelic-tank-game/
+5e800ec0-…-e5dde2895c57   a2742607-…-ee3f985521af   …   84063494-…-c13c243d2ba8
+```
+
+Two counter filenames appear verbatim as session scratchpad uuids, and the env id equals this
+session's scratchpad uuid. So a hook payload's `session_id` **is** the session uuid, and a
+`PostToolUse` hook keyed the same way would find the same counter file.
+
+What remains unverified is whether `PostToolUse` fires on the `Bash` matcher at all and what
+its payload carries. The fold that measured the above could not test it: **editing
+`settings.json` is refused by the harness's auto-mode classifier**, so the probe hook could not
+be registered. Do not ship the move on the assumption — that is the defect class the parent
+project's fold 6 exists to close. Register a throwaway probe in a session where the edit is
+permitted, confirm the event fires and carries the id, then move the increment.
+
 ---
 
 ## Why the harness exists at all
@@ -164,6 +207,81 @@ considered and **not** used: it is written against the Godot 3 API (`PoolRealArr
 `translation`, argument-less `storage_buffer_create()`) and does not run. It is a sketch, not
 an implementation. If GPU meshing is ever wanted here, start from the working CPU version and
 port it, not from that file.
+
+---
+
+## Fold 1 — 2026-08-26
+
+Five entries in, five out. **`SURFACE: 55049 → 55785, +736`** against the transplant baseline,
+measured before this section was written. The first draft of the fold measured **+2444**; the
+difference is entirely compression of the additions and four duplications cut, and it is worth
+recording that the honest first number was three times the defensible one. `doer.md` (-390) and
+`reviewer.md` (-234) both came out smaller.
+
+**Evidence stripped off the in-force surface and kept here.** Each rule below is stated in one
+line where an agent will meet it; this is the measurement that bought it.
+
+- **The before batch is the whole harness surface** (`build.md`). Session B's gate was "nothing
+  visibly changes" and the brief named three quantities — `chunks_total`, `terrain_triangles`,
+  `surface_height_range()`. The refactor moved `spawn_clearance` into `LevelDef`, and
+  `tank_spawn_height` (= `surface_height(0,0) + spawn_clearance`) sat directly downstream of it
+  and was not in the batch. The Doer reported it plainly: "no true BEFORE value — my omission
+  from the first batch, and unrecoverable", and reconstructed it by inference. Eight
+  harness-facing names were enumerable from `main.gd`'s header at the time; `--harness-eval`
+  repeats, so all eight were the same single boot as three. A "before" is the one measurement
+  that cannot be re-taken, so the selection rule cannot be "what the task is about".
+
+- **A resource reference is proved by `resource_path`, not by a number** (`CLAUDE.md § Traps`).
+  Session B moved `field` off the `Terrain` node into `levels/valley.tres`, assigned by
+  `LevelRunner._apply_level()` but only `if level.field != null`, with `Terrain._ready()`
+  building `TerrainField.new()` as a fallback. Every value in `world_field.tres` equals the
+  `@export` default of the script it instantiates (`amplitude 22.0, frequency 0.011,
+  noise_seed 1337, octaves 4, persistence 0.42, plateau_strength 0.25, plateau_step 6.0,
+  vertical_offset 0.0`, `crater_blend 2.0`). A `valley.tres` that silently failed to resolve
+  would therefore still have produced `chunks_total 32`, `terrain_triangles 28414` and
+  `surface_height_range() (-9.792703, 8.059858, 2.712966)` — the exact three numbers offered as
+  proof the gate held. This is *not* the "statistic computed by the change" trap: the statistic
+  is genuinely independent, but both code paths compute the same one.
+
+- **No frame runs inside an eval batch** (`CLAUDE.md § The dev harness`, `doer.md`).
+  `main.gd` exposed `explosions_spawned` as a var refreshed from the effects director in
+  `_process()`. One batch emitted the signal and read it back:
+  ```
+  scene.explosions_spawned                                    = 0
+  root.get_node("GameEvents").shell_exploded.emit(…)          = <null>
+  scene.explosions_spawned                                    = 0   <- wrong
+  scene.terrain.craters_carved                                = 1   <- right, read off the owner
+  ```
+  Both listeners had run. `_cmd_eval` executes every expression in one pass, so `_process()`
+  never ran to copy the value across. The dangerous part is the *shape* of the wrong answer:
+  `0` against a signal that fired correctly reports "the connection is broken" about a
+  connection that works, on a run that compiles, passes resources, logs nothing and renders —
+  and the obvious next move is to go and "fix" correct signal wiring. `doer.md` previously read
+  as an endorsement of exactly this mirror; it now asks for a computed getter, or recording on
+  the code path that writes the value, and bans the per-frame refresh.
+
+**Dropped, with reasons.**
+
+- **Incremental writes for the modeller's `.candidates.json`.** The entry proposed appending
+  each candidate as verified, capping an interruption's loss at one candidate instead of a
+  whole run — and handed over the tension itself: a partially written file is
+  indistinguishable from a finished one, so it needs a completeness marker, which is a schema
+  change to the artifact `source-model.md` calls "the seam a different search backend plugs
+  into later". **Not folded.** The measured recovery path already works and is cheap: the run
+  that died on an API error at "All verified. Writing the shortlist." after 63,484 tokens / 56
+  tool uses / ~29 minutes was resumed via `SendMessage` for 74,580 tokens and **2 tool uses**,
+  with no re-searching. The real gap was that `source-model.md` named `SendMessage` only for
+  the "none of these" path, so nothing told an orchestrator to resume a *killed* modeller —
+  one line, no schema churn. Note the cost is invisible to both budget counters, since
+  `/source-model` spends zero engine launches; that is a known blind spot, not a new one.
+
+- **`reviewer.md`'s collision-layer restatement.** Not from an entry — found while reading. It
+  read "Layer 2 is the wing-kill layer; a prop that should be scenery landing on it kills the
+  player on contact", which is the *parent* project's fact set surviving the transplant into a
+  game with no wings, and it contradicted `CLAUDE.md § Code standards` (layer 2 is the tank).
+  Replaced with a pointer. This is the third instance of the same failure — a rule restated in
+  an agent file, then drifting, with the stale copy being the one the agent runs — and it is
+  why the three test-sequence rationales were also collapsed to pointers this fold.
 
 ---
 

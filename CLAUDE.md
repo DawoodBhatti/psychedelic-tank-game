@@ -5,10 +5,9 @@ live in `.claude/pipeline-notes.md`, which is **not** auto-loaded — read it wh
 pipeline, not when changing the game. This file is re-read on every turn of every session, so
 history in it is paid thousands of times. Keep it short; put the *why* in the notes.
 
-**This pipeline was transplanted from `../flying-game-prototype` (repo name:
-marching-cubes-prototype), not grown here.** Most rules below were paid for by a failure in
-that project rather than this one. Where a rule looks arbitrary, its evidence is in that
-project's notes; the provenance section of `.claude/pipeline-notes.md` says how to use it.
+**This pipeline was transplanted from `../flying-game-prototype`, not grown here** — where a
+rule below looks arbitrary, it was paid for by a failure there. See provenance in
+`.claude/pipeline-notes.md`.
 
 ## Scope
 - **The repo root is both the git root and the Godot project root.** Run every command from here.
@@ -145,6 +144,11 @@ input-synthesis scaffolding to close the gap.
 launch can mutate the scene *or* photograph it, never both in that order. **This bites carving
 specifically**: `scene.terrain.carve(...)` and a screenshot of the hole are two launches, and
 the eval that carves cannot show you the result.
+
+**Within one eval batch, no frame runs.** Anything produced by `_process`, a `Timer` or a tween
+is frozen at its pre-batch value, so emitting a signal and then reading a var that `_process`
+mirrors returns the *pre-emit* number — indistinguishable from a signal that never fired. Read
+off the node that owns the value.
 
 It **can** read GDScript `const`s, which plain `get()` cannot — do not file a `const` under the
 limit above by analogy. Arithmetic over them composes in the same batch, so retuning a constant
@@ -304,6 +308,12 @@ one. The post-mortems are in pipeline-notes.
   derived differently — for generated geometry, `mesh.get_aabb()` plus the node transform, and
   the surface's vertex count, both of which read back **non-empty headless** on a procedural
   `ArrayMesh`.
+- **When a change moves a resource reference, the evidence is the reference** —
+  `resource_path` or `get_script().resource_path` off the live object, never a number derived
+  from it. A null-guarded assignment falling back to a default-constructed object yields
+  *identical* numbers wherever the authored `.tres` matches the script's `@export` defaults, so
+  an equality gate passes a change that never took effect. Unlike the trap above the statistic
+  is independent — both paths simply compute the same one.
 
 ---
 

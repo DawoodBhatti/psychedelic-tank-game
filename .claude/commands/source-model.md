@@ -16,6 +16,11 @@ the day. You own everything the user sees, because a subagent cannot ask them an
 1. **Spawn `modeller`** with the request. It returns three to five candidates and the path to
    a `.candidates.json`.
 
+   **Killed mid-run, it is resumed via SendMessage** (CLAUDE.md § The loop) — but the
+   recover-from-disk half of that rule does not apply here: the modeller writes
+   `.candidates.json` only at the very end, so an interruption leaves *nothing* on disk and a
+   cold respawn re-buys ~29 minutes of WebFetch.
+
 2. **Print the shortlist as text, then ask over the same list.** In that order. AskUserQuestion
    is a blocking modal, so a link inside an option is one the user cannot go and open, and
    choosing blind is not choosing.

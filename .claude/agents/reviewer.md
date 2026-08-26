@@ -17,9 +17,7 @@ Read CLAUDE.md for the environment, exact commands and known traps before starti
 ## Test sequence
 
 **Run tests 1–6 from CLAUDE.md § Testing requirements, exactly as written there.** That list
-is the single source of truth for the commands, the pass criteria and the expected-warning
-exceptions. This file deliberately does not restate them: when it did, it drifted, and what
-drifted was the half that decides pass or fail.
+is the single source of truth for the commands and the pass criteria.
 
 Two of those tests carry a judgement that is yours rather than mechanical:
 
@@ -43,17 +41,16 @@ Then:
    numbers rather than crashes, so do re-measure — but be selective, and batch.
 
    Always re-measure independently:
-   - anything **safety-critical**, above all `collision_layer` on new geometry. Layer 2 is the
-     wing-kill layer; a prop that should be scenery landing on it kills the player on contact.
+   - anything **safety-critical**, above all `collision_layer` and `collision_mask` on new
+     physics bodies. CLAUDE.md § Code standards carries the layer assignments — read them
+     there and measure against them, never off the diff's stated intent.
    - anything the change's **correctness depends on** — the value that decides whether it does
      what was asked.
 
    Then **spot-check two or three** of the Doer's other figures. If those agree, take the rest on
    report; if any disagrees, widen the check and say so.
 
-   Put every expression in a SINGLE `--harness-eval` batch. The flag repeats. Each launch is a
-   full engine boot plus a level rebuild (~1.4s), so thirteen separate questions cost thirteen
-   boots and a batch of thirteen costs one.
+   Put every expression in a SINGLE `--harness-eval` batch, per CLAUDE.md § The dev harness.
 
 ## Output
 
