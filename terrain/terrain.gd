@@ -177,6 +177,11 @@ func reset() -> void:
 
 ## Height of the original ground at a world x/z, ignoring craters. What to
 ## spawn things on.
+##
+## Goes through SDF's height-field interface, so the ground may be one field or
+## a whole SDFComposite stack. A ground field that is not a height field cannot
+## answer this and pushes an error rather than returning a plausible 0.0 - see
+## SDF.surface_height().
 func surface_height(x: float, z: float) -> float:
 	return field.ground.surface_height(x, z)
 

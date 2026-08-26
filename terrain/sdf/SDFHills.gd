@@ -89,7 +89,8 @@ func _fbm(x: float, z: float) -> float:
 	return total
 
 
-## Surface height at a world x/z. Public because spawning anything on the
+## Surface height at a world x/z. Implements SDF's height-field interface.
+## Public because spawning anything on the
 ## ground needs it, and ray-marching the field down from the sky to find the
 ## same number would cost hundreds of samples for a value the generator already
 ## knows in closed form.
@@ -112,3 +113,13 @@ func surface_height(x: float, z: float) -> float:
 
 func sample(p: Vector3, _chunk_offset: Vector3 = Vector3.ZERO) -> float:
 	return p.y - surface_height(p.x, p.z)
+
+
+## Implements SDF's height-field interface. `amplitude` IS the vertical scale
+## of this field by construction - surface_height() returns
+## `fbm * amplitude + vertical_offset`, and fbm is bounded by +/-1 - so this is
+## the same number the material ramp was always set from, not a restatement of
+## it. Note it is a bound, not the realised relief: layered fBm does not
+## saturate, so the measured range is roughly 0.8x this (see `amplitude`).
+func vertical_extent() -> float:
+	return amplitude

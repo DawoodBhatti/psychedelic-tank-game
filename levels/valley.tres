@@ -1,0 +1,14 @@
+[gd_resource type="Resource" script_class="LevelDef" load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://levels/LevelDef.gd" id="1_def"]
+[ext_resource type="Resource" path="res://terrain/fields/world_field.tres" id="2_field"]
+[ext_resource type="ShaderMaterial" path="res://terrain/materials/neon_terrain.tres" id="3_material"]
+[ext_resource type="Environment" path="res://environment/neon_environment.tres" id="4_env"]
+
+[resource]
+script = ExtResource("1_def")
+field = ExtResource("2_field")
+surface_material = ExtResource("3_material")
+environment = ExtResource("4_env")
+spawn_clearance = 4.0
+trip_fade = 1.2

@@ -16,8 +16,30 @@ class_name TerrainField
 # a shared field between chunks would mean chunk 5 meshes a different world
 # from chunk 4, and, worse, the craters carved so far would move.
 
+# Smooth subtraction does not preserve |grad| <= 1, so anything sphere tracing
+# this field must divide a sampled distance before treating it as a safe step.
+# Nothing does yet; the number is recorded so it is not discovered the hard way
+# later. See SDF.lipschitz and SDFOps' header.
+#
+# SDFComposite reports the same factor for the same op family, from its own
+# constant, and the two are meant to stay equal.
+const CRATER_LIPSCHITZ := 2.0
+
 ## The ground surface before anything is blown out of it.
-@export var ground: SDFHills
+##
+## Typed as SDF, not SDFHills, so it can be a whole SDFComposite stack. Craters
+## are unaffected by that widening and always were: carving is applied HERE, one
+## level above the ground field, so the ground can become anything at all
+## without destruction knowing. That property is the reason the field stack was
+## cheap to introduce.
+##
+## It must be a HEIGHT field - see SDF's height-field interface - because
+## Terrain.surface_height() reaches through this reference to decide where the
+## tank spawns.
+@export var ground: SDF:
+	set(value):
+		ground = value
+		_update_lipschitz()
 
 ## Softness of a crater's rim, in world units. 0 gives a hard-edged spherical
 ## bite; a couple of units gives a melted lip that reads better under the neon
@@ -42,11 +64,21 @@ var _active_radius := PackedFloat32Array()
 
 
 func _init() -> void:
-	# Smooth subtraction does not preserve |grad| <= 1, so anything sphere
-	# tracing this field must divide a sampled distance before treating it as a
-	# safe step. Nothing does yet; the number is recorded so it is not
-	# discovered the hard way later. See SDF.lipschitz and SDFOps' header.
-	lipschitz = 2.0
+	_update_lipschitz()
+
+
+# The ground is no longer guaranteed to be a true distance field: it may be a
+# composite that already over-reports. Whatever it costs is carried through the
+# crater subtraction, so the field's factor is the ground's scaled by ours
+# rather than a flat 2.0 that would silently under-report the moment the stack
+# grows a smoothed layer.
+#
+# Recomputed from `ground`'s setter, not from _init(), because _init() runs
+# BEFORE the loader assigns exported values - the trap SDFHills' `frequency`
+# setter documents. With today's single-layer hills stack (lipschitz 1.0) this
+# still evaluates to exactly 2.0.
+func _update_lipschitz() -> void:
+	lipschitz = CRATER_LIPSCHITZ * (ground.lipschitz if ground != null else 1.0)
 
 
 # Deliberately empty. See the header: chunk.gd calls this before sampling, and

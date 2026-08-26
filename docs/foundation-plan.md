@@ -75,17 +75,26 @@ modeller at effects.** The power core is likewise a sphere plus a shader, not a 
 Five layers, bottom to top. Each session builds one and the gate is that the layer below is
 untouched.
 
-### 1. Field stack (session B)
+### 1. Field stack (sessions B and C)
 
 `SDFHills.sample()` is `p.y - surface_height(x, z)`. A heightmap field is the same shape, so:
 
-- **`SDFHeightmap extends SDF`** — image, world size, height scale, vertical offset, bilinear
-  sample. Identical interface to `SDFHills`.
-- **`SDFComposite extends SDF`** — layers a list of fields through the existing `SDFOps`
-  combinators. `heightmap ⊕ fBm detail ⊕ authored primitives`.
-- **`TerrainField.ground` widens from `SDFHills` to `SDF`.** Craters keep working *identically*
-  — carving already sits in a layer above the ground field, and that is the property that makes
-  this whole approach safe.
+- ✅ **`SDFComposite extends SDF`** (B) — layers a list of fields through the existing `SDFOps`
+  combinators. `heightmap ⊕ fBm detail ⊕ authored primitives`. Reports `max(layer.lipschitz)`,
+  doubled if any seam is a smoothed op.
+- ✅ **`TerrainField.ground` widens from `SDFHills` to `SDF`.** (B) Craters keep working
+  *identically* — carving already sits in a layer above the ground field, and that is the
+  property that makes this whole approach safe. **Measured, not assumed:** a carve flips
+  `field.sample()` from -4.0 to +4.5 at a point below the surface while `ground.sample()` holds
+  at -4.0.
+- ✅ **An optional height-field interface on `SDF`** (B) — `surface_height(x, z)` and
+  `vertical_extent()`, both `push_error` by default. `Terrain.surface_height()` and the shader's
+  `height_range` ramp both reached through `ground` for `SDFHills`-only members, so widening the
+  type needed somewhere for those to land. They stay **derived from the live field**; nothing is
+  copied onto `LevelDef`, which is what stops the ramp going stale when amplitude is retuned.
+- **`SDFHeightmap extends SDF`** (**C**, needs `valley-heightmap.png` on disk) — image, world
+  size, height scale, vertical offset, bilinear sample. Identical interface to `SDFHills`. It
+  arrives as one more layer on a mechanism session B already verified.
 
 Two import gotchas, both silent:
 
@@ -94,11 +103,24 @@ Two import gotchas, both silent:
 - The heightmap must import as **`Image` data, not a VRAM-compressed `Texture2D`** — a
   compressed texture cannot be read back cleanly at runtime.
 
-### 2. Level as data (session B)
+### 2. Level as data (session B) ✅
 
-`main.gd` → **`LevelRunner`** plus a **`LevelDef`** Resource holding: field stack, environment,
-spawn manifest, objectives. Same doctrine `main.gd` already states — *anything that has to know
-about two systems is a level concern* — but a new level becomes a `.tres` instead of a script.
+`main.gd` → **`LevelRunner`** plus a **`LevelDef`** Resource. Same doctrine `main.gd` already
+states — *anything that has to know about two systems is a level concern* — but a new level
+becomes a `.tres` instead of a script. Shipped as `levels/valley.tres`.
+
+`LevelDef` holds **field stack, surface material, environment, spawn clearance, trip fade**.
+The **spawn manifest lands in D and objectives in G**; they are deliberately absent, so a
+session adding them is extending this resource rather than finding it already half-built.
+
+**One trap this created, and it is not obvious.** `Terrain._ready()` still builds a default
+`TerrainField` when the node is left unwired, and every value in `world_field.tres` equals its
+script's `@export` default — so a `LevelDef` that silently failed to resolve its field would
+reproduce *every* number in B's gate table exactly. Equality proves the values match; it does
+not prove which path produced them. The evidence that the authored field is live is
+`terrain.field.resource_path` and `terrain.field.ground.get_script().resource_path`, read off
+the live object. Every session after this one moves more configuration into `.tres` behind a
+null-guarded assignment, so this applies to all of them.
 
 ### 3. Entity layer (session C)
 
@@ -216,7 +238,7 @@ never reset.
 | # | Session | Gate |
 |---|---|---|
 | A | ✅ **done 2026-08-25.** Spec + sourcing. 0 engine launches, 3 agent turns | This file exists; both candidate lists and provenance sidecars written |
-| B | Level data + composite field: `LevelDef`, `LevelRunner`, `SDFComposite`. **No asset dependency** | **Plays identically.** A single-layer composite wrapping the existing `SDFHills` reproduces today's terrain exactly |
+| B | ✅ **done 2026-08-26.** Level data + composite field: `LevelDef`, `LevelRunner`, `SDFComposite`. 16 engine launches, 2 agent turns | **Met.** Single-layer composite over the existing `SDFHills`: `chunks_total` 32, `terrain_triangles` 28414, `surface_height_range()` (-9.792703, 8.059858, 2.712966) — bit-identical before and after. Tests 1–6 pass; fps min 120, load 1.11 s |
 | C | Heightmap: `SDFHeightmap`, the glen as a field layer. **Needs `valley-heightmap.png` on disk** | The glen renders and is drivable; load time still under 30 s |
 | D | Entity layer + scatter: `Damageable`, layers, `Spawner`, `TerrainAnalysis` | Things land sensibly; `spawn_failures == 0` |
 | E | Combat: `WeaponMount`/`WeaponDef`, damage, tank health, `StatBlock` | Tank can die; shells damage things |
