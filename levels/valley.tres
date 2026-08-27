@@ -1,9 +1,51 @@
-[gd_resource type="Resource" script_class="LevelDef" load_steps=5 format=3]
+[gd_resource type="Resource" script_class="LevelDef" load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://levels/LevelDef.gd" id="1_def"]
 [ext_resource type="Resource" path="res://terrain/fields/world_field.tres" id="2_field"]
 [ext_resource type="ShaderMaterial" path="res://terrain/materials/neon_terrain.tres" id="3_material"]
 [ext_resource type="Environment" path="res://environment/neon_environment.tres" id="4_env"]
+[ext_resource type="Script" path="res://entities/PlacementRule.gd" id="5_rule"]
+[ext_resource type="Script" path="res://entities/SpawnGroup.gd" id="6_group"]
+[ext_resource type="PackedScene" path="res://entities/guardian_placeholder.tscn" id="7_guardian"]
+[ext_resource type="PackedScene" path="res://entities/prop_placeholder.tscn" id="8_prop"]
+
+[sub_resource type="Resource" id="Rule_ridgeline"]
+script = ExtResource("5_rule")
+min_slope_degrees = 0.0
+max_slope_degrees = 35.0
+min_elevation_percentile = 0.65
+max_elevation_percentile = 1.0
+min_openness = 0.7
+max_openness = 1.0
+
+[sub_resource type="Resource" id="Rule_midslope"]
+script = ExtResource("5_rule")
+min_slope_degrees = 12.0
+max_slope_degrees = 30.0
+min_elevation_percentile = 0.1
+max_elevation_percentile = 0.9
+min_openness = 0.0
+max_openness = 0.875
+
+[sub_resource type="Resource" id="Group_guardians"]
+script = ExtResource("6_group")
+id = "guardian"
+scene = ExtResource("7_guardian")
+count = 5
+placement = SubResource("Rule_ridgeline")
+ground_clearance = 0.4
+separation = 28.0
+random_yaw = true
+
+[sub_resource type="Resource" id="Group_props"]
+script = ExtResource("6_group")
+id = "prop"
+scene = ExtResource("8_prop")
+count = 12
+placement = SubResource("Rule_midslope")
+ground_clearance = 0.2
+separation = 9.0
+random_yaw = true
 
 [resource]
 script = ExtResource("1_def")
@@ -12,3 +54,6 @@ surface_material = ExtResource("3_material")
 environment = ExtResource("4_env")
 spawn_clearance = 4.0
 trip_fade = 1.2
+spawn_manifest = Array[SpawnGroup]([SubResource("Group_guardians"), SubResource("Group_props")])
+spawn_seed = 20260826
+player_keepout = 26.0

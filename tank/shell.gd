@@ -26,10 +26,19 @@ class_name Shell
 
 @export var gravity: float = -22.0
 
-## Layers the shell can hit. Bit 0 is terrain. Deliberately does NOT include
-## the tank's layer: a shell that masked its own firer would detonate on the
-## barrel it left.
-@export_flags_3d_physics var hit_mask: int = 1
+## Layers the shell can hit. Deliberately does NOT include the tank's layer: a
+## shell that masked its own firer would detonate on the barrel it left.
+##
+## TERRAIN ONLY, AND ENEMIES ARE MISSING ON PURPOSE. The foundation plan's mask
+## table gives this row terrain AND enemies, and that is session E's change, not
+## this one. Adding the bit now would make a shell detonate against a guardian
+## and take zero hit points off it - a hit that visibly connects and does
+## nothing, which is the exact failure DamageProfile.min_damage_fraction exists
+## to prevent one layer up. Passing straight through is the more honest
+## intermediate state: it is obviously unfinished rather than subtly broken.
+##
+## Not stored in shell.tscn - this default is the only place the value lives.
+@export_flags_3d_physics var hit_mask: int = CollisionLayers.TERRAIN
 
 var velocity: Vector3 = Vector3.ZERO
 

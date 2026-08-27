@@ -39,6 +39,26 @@ signal shell_exploded(position: Vector3, radius: float)
 ## second is safe to measure geometry against.
 signal terrain_carved(position: Vector3, radius: float, chunks_rebuilt: int)
 
+# --- Entities --------------------------------------------------------------
+
+## Something with a Damageable took a hit that got through. `amount` is the
+## damage ACTUALLY APPLIED - post-resistance, post-armour - because the things
+## that listen (a damage number, a hit sound, a shake) want what came off the
+## health bar rather than what was fired at it. The raw figure belongs to the
+## weapon, and the weapon is where to ask for it.
+##
+## On the bus rather than local to the entity because none of the listeners are
+## in its subtree: a HUD, an audio director and the objective tracker all care,
+## and none of them should have to find a guardian to hear about it.
+signal entity_damaged(entity: Node3D, amount: float, source: Node3D)
+
+## An entity's health reached zero. Fired exactly once - Damageable discards
+## overkill, so a shell landing on a wreck does not raise this a second time and
+## anything counting kills cannot double-count.
+##
+## `source` may be null: falling, scripting and level resets kill things too.
+signal entity_destroyed(entity: Node3D, source: Node3D)
+
 # --- Scene lifecycle -------------------------------------------------------
 
 ## The active gameplay scene has finished building itself and has drawn a

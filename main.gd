@@ -23,6 +23,7 @@ class_name LevelRunner
 @onready var tank: Tank = $Tank
 @onready var ui: TankUI = $UI
 @onready var world_environment: WorldEnvironment = $WorldEnvironment
+@onready var spawner: Spawner = $Spawn
 
 ## The level to run. Everything that describes this valley rather than the
 ## machinery for playing it comes from here.
@@ -104,6 +105,62 @@ var tank_spawn_height: float = 0.0
 ## Trip mode, 0 or 1. Read back to confirm the toggle did anything.
 var trip_active: bool = false
 
+# --- Scatter ---------------------------------------------------------------
+# Where the entity layer put its mass. A transform is a CLAIM about intent
+# unless something measures the gap it left, and none of the six tests in the
+# sequence asks where anything is - so a generator that decides where mass lands
+# owes a clearance, the same way Terrain.last_carve_clearance does for carving.
+#
+# All getters, for the reason above. spawn_failures in particular: it is written
+# once during the level build and never again, so a per-frame mirror of it would
+# be correct in every situation except the one where someone re-ran the scatter
+# and asked in the same batch.
+
+## Entities the scatter could not find a home for. THE SESSION GATE IS ZERO.
+##
+## -1, not 0, when there is no Spawner at all: a missing spawner placing nothing
+## must not report the same number as a scatter that placed everything it was
+## asked to. A sentinel that fails the gate is the only safe answer to "I could
+## not measure this".
+var spawn_failures: int:
+	get:
+		return spawner.spawn_failures if spawner != null else -1
+
+## Entities actually placed. Read WITH spawn_failures: zero failures out of zero
+## requested is not evidence of anything.
+var entities_spawned: int:
+	get:
+		return spawner.entities_placed if spawner != null else -1
+
+## Smallest gap between any two placed entities, or between one and the player's
+## spawn, after subtracting the separation each was placed under. Positive means
+## nothing overlaps anything it was told to keep off; zero or below means the
+## overlap rejection did not do its job.
+##
+## INF when there is nothing to measure - pair it with entities_spawned.
+var min_spawn_clearance: float:
+	get:
+		return spawner.min_spawn_clearance() if spawner != null else INF
+
+## Smallest distance from a placed entity down to the ground beneath it. This is
+## what says the surface snap actually happened, and it is derived DIFFERENTLY
+## from the placement - live node transform minus a fresh surface_height() at
+## that node's own x/z - so reading it is a check and not a re-execution.
+var min_ground_clearance: float:
+	get:
+		return spawner.min_ground_clearance() if spawner != null else INF
+
+## Placed entities carrying a Damageable that has not been destroyed, and the
+## number that carry one at all. Counted off the live nodes, so a kill shows up
+## here without anything having to remember it happened.
+var enemies_alive: int:
+	get:
+		return spawner.live_damageable_count() if spawner != null else 0
+
+var enemies_total: int:
+	get:
+		return spawner.damageable_count() if spawner != null else 0
+
 var _explosions: ExplosionDirector
 var _trip_tween: Tween
 
@@ -122,6 +179,7 @@ func _ready() -> void:
 	terrain.build()
 
 	_place_tank()
+	_scatter_entities()
 
 	ui.tank = tank
 	ui.terrain = terrain
@@ -153,6 +211,8 @@ func _ready() -> void:
 		"tank_spawn_height": snappedf(tank_spawn_height, 0.01),
 		"world_extent_x": terrain.world_extent_x(),
 		"world_extent_z": terrain.world_extent_z(),
+		"entities_spawned": entities_spawned,
+		"spawn_failures": spawn_failures,
 	})
 
 
@@ -191,6 +251,21 @@ func _place_tank() -> void:
 	tank.spawn_position = Vector3(0.0, tank_spawn_height, 0.0)
 	tank.death_height = terrain.world_floor() - 20.0
 	tank.global_position = tank.spawn_position
+
+
+# Populates the valley from the level's spawn manifest.
+#
+# AFTER _place_tank(), and that ordering is load-bearing: the tank's spawn is
+# reserved before anything else is placed, so the player never starts the run
+# inside a guardian. The spawner has no idea where the player begins and should
+# not - the level does, which is the same division of labour that put the tank's
+# own placement in this file rather than in tank.gd.
+#
+# It does not re-mesh anything. terrain.build() has already run and every chunk
+# has its collider; placement only asks the field for heights.
+func _scatter_entities() -> void:
+	spawner.reserve(tank.spawn_position, level.player_keepout)
+	spawner.scatter(terrain, level.spawn_manifest, level.spawn_seed)
 
 
 # ------------------------------------------------------------

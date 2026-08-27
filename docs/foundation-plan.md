@@ -25,7 +25,7 @@ archetypes. This is one level, built on foundations that make the second one che
 | Heightmap sourcing | **NASADEM 30 m via OpenTopography**, chosen 2026-08-25 — the only public-domain route that covers Scotland. Crop a real glen. Full provenance, crop plan and licence structure in `assets/incoming/terrain-heightmap.source.json`. Copernicus excluded (requires attribution). |
 | Core retrieval | **Drive-over pickup**, deliver by entering the gate zone. The objective API is written so a tractor-beam tow replaces the pickup without touching the tracker, the HUD or the LevelDef. |
 | Modularity | **Both axes.** Content is data (`.tres`); tank stats sit behind a modifier stack so in-game upgrades drop in later as data. |
-| Asset sourcing priority | **Player tank / vehicle hulls first.** Guardians and structures deferred — nothing integrates before session G. |
+| Asset sourcing priority | **Player tank / vehicle hulls first.** Guardians and structures deferred — nothing integrates before session H. |
 
 ### Why DEM-plus-noise, and the scale arithmetic
 
@@ -122,17 +122,27 @@ not prove which path produced them. The evidence that the authored field is live
 the live object. Every session after this one moves more configuration into `.tres` behind a
 null-guarded assignment, so this applies to all of them.
 
-### 3. Entity layer (session C)
+### 3. Entity layer (session D)
 
 Components as child nodes configured by exported Resources, **not** inheritance:
 
-- **`Damageable`** — HP, armour, damage type. Emits on the bus.
-- **`WeaponMount` + `WeaponDef`** — shell scene, muzzle velocity, reload, damage, blast radius.
-  The player tank and a guardian turret differ by *data*.
-- **`AIBrain`** — sensor + state machine, one per guardian archetype.
-- **`Spawner`** — generalises `_place_tank()`: snap to surface, clearance-check, reject overlaps.
+Tagged per bullet, because this section lists more than session D built — the session table
+at the bottom is the scope boundary and these tags follow it, not the heading above.
 
-### 4. Terrain analysis + scatter (session C)
+- ✅ **`Damageable`** (D) — HP, armour, damage type, all from a `DamageProfile` resource. Emits
+  `entity_damaged` / `entity_destroyed` on the bus, and local `damaged` / `destroyed` at the
+  entity it hangs off. It never frees anything: what death *looks like* belongs to the entity.
+- ✅ **`Spawner`** (D) — generalises `_place_tank()`: snap to surface, clearance-check, reject
+  overlaps. Overlap rejection is analytic rather than a physics query, because bodies added in
+  the current frame are not in the broadphase until it steps and `intersect_shape()` against
+  one returns nothing — an overlap check that passes everything and looks like it works.
+- ✅ **`CollisionLayers`** (D) — named bits, and the ruling that a body's layers are assigned in
+  its script and never in its `.tscn`. See that file's header for why.
+- **`WeaponMount` + `WeaponDef`** (**E**) — shell scene, muzzle velocity, reload, damage, blast
+  radius. The player tank and a guardian turret differ by *data*.
+- **`AIBrain`** (**F**) — sensor + state machine, one per guardian archetype.
+
+### 4. Terrain analysis + scatter (session D)
 
 A **`TerrainAnalysis`** pass computing per-candidate-point **slope**, **elevation percentile**
 and **openness / sightline**. Placement rules then become data:
@@ -147,7 +157,39 @@ and **openness / sightline**. Placement rules then become data:
 This is the piece that makes a real DEM worth having: it finds the valley's natural strongpoints
 instead of us placing them by hand.
 
-### 5. Stats and upgrades (session D)
+✅ **Landed in D**, as `TerrainAnalysis` plus a `PlacementRule` resource per rule. Guardians and
+props are authored in `levels/valley.tres`; cores and the gate are session G and are absent
+rather than stubbed.
+
+**Every slope, openness and elevation threshold in that manifest sits between two measured
+numbers**, which is only possible because `TerrainAnalysis.metrics_summary()` writes the
+quantiles of those three to the session log on every load. Measured over 400 candidates on the
+session-B hills:
+
+| metric | min | p25 | p50 | p75 | max |
+|---|---|---|---|---|---|
+| slope° | 1.64 | 11.94 | 17.83 | 29.95 | 48.51 |
+| openness | 0.125 | 0.484 | 0.688 | 0.875 | 1.0 |
+| height | −9.53 | −3.26 | −1.51 | 1.45 | 7.35 |
+
+The first draft of the guardian rule used `min_openness = 0.45`, below p25, and **rejected zero
+candidates** — a "long sightlines" criterion that did nothing. It is now 0.70, between p50 and
+p75. Props moved to the measured interquartile slope band (12–30°), which is what "mid-slopes"
+means here rather than a guess. **Session C replaces the hills with a real DEM and every bound
+in the table above needs re-deriving from the new quantiles then** — they are relative to this
+valley, not absolute.
+
+**The fourth metric, `edge_fraction`, is deliberately not in that table and is not authored in
+`valley.tres`.** It is a property of the world box rather than of the terrain, so no quantiles
+are published for it and it has a closed-form floor instead: candidates are held `edge_margin`
+inside the world, so the smallest achievable value is `edge_margin / world_extent`, today
+6 / 96 = **0.0625**. The first draft authored `0.06` and `0.03` — both below the floor, so both
+were inert, the same defect as the openness bound above shipped one rule later. Both rules now
+leave the edge bounds at their permissive defaults, because `edge_margin` already excludes the
+map edge. Session G's gate rule (*flat ground near a map edge*) is what `max_edge_fraction`
+exists for; whoever authors it should derive the floor first.
+
+### 5. Stats and upgrades (session E)
 
 `TankStats` Resource of base values; a runtime `StatBlock` applies an ordered list of
 `StatModifier` resources. Drive and gunnery read through the block, never constants.
@@ -182,7 +224,7 @@ Masks:
 |---|---|---|
 | Terrain chunk | 1 | — (static) |
 | Player tank | 2 | 1, 4 — terrain and enemies are solid |
-| Player shell (raycast) | — | 1, 4 |
+| Player shell (raycast) | — | 1 today; 1, 4 in **(E)** |
 | Enemy body | 4 | 1, 2 |
 | Enemy shell (raycast) | — | 1, 2 |
 | Core pickup `Area3D` | 6 | 2 |
@@ -240,7 +282,7 @@ never reset.
 | A | ✅ **done 2026-08-25.** Spec + sourcing. 0 engine launches, 3 agent turns | This file exists; both candidate lists and provenance sidecars written |
 | B | ✅ **done 2026-08-26.** Level data + composite field: `LevelDef`, `LevelRunner`, `SDFComposite`. 16 engine launches, 2 agent turns | **Met.** Single-layer composite over the existing `SDFHills`: `chunks_total` 32, `terrain_triangles` 28414, `surface_height_range()` (-9.792703, 8.059858, 2.712966) — bit-identical before and after. Tests 1–6 pass; fps min 120, load 1.11 s |
 | C | Heightmap: `SDFHeightmap`, the glen as a field layer. **Needs `valley-heightmap.png` on disk** | The glen renders and is drivable; load time still under 30 s |
-| D | Entity layer + scatter: `Damageable`, layers, `Spawner`, `TerrainAnalysis` | Things land sensibly; `spawn_failures == 0` |
+| D | ✅ **done 2026-08-27.** Entity layer + scatter: `Damageable`, `CollisionLayers`, `Spawner`, `TerrainAnalysis`. 32 engine launches, 5 agent turns, two review rounds | **Met, Reviewer-verified.** `spawn_failures` 0, 17 of 17 placed (5 guardians, 12 props). `min_spawn_clearance` +0.35233 m (tightest pair prop_2↔guardian_0, 28.3523 m against a 28 m requirement — computed by hand off the two live transforms, not read off the getter the change itself computes). Surface snap corroborated at non-integer x/z, first *and* last member of a group: guardian_0 0.40000, prop_11 0.19999. Collision measured off live nodes — tank 2/**9**, guardians 8/3, and reserved bits 2 and 4 provably empty (OR of every layer and mask across all nine bodies `& 20` = 0). `chunks_total` 32 and `terrain_triangles` 28414 unmoved. Tests 1–6 pass; fps min 120, load 1.195 s. **Test 6 was shot and column-swept in round 1; in round 2 it was passed by measured identity rather than a fresh shot** — every sampled position bit-identical and the `entities_scattered` log entry byte-identical, so the frame cannot differ |
 | E | Combat: `WeaponMount`/`WeaponDef`, damage, tank health, `StatBlock` | Tank can die; shells damage things |
 | F | Guardians: turret + hunter, `AIBrain` | Enemies acquire and shoot back |
 | G | Objective: cores, gate, tracker, HUD, win/lose | Full loop playable start to finish |
@@ -258,7 +300,7 @@ verify.
 > verified.
 
 Entities carry a **skin slot**: a swappable visual child, so gameplay scenes never reference a
-specific mesh and session G is a data change rather than a rework.
+specific mesh and session H is a data change rather than a rework.
 
 ---
 

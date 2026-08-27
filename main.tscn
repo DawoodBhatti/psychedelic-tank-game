@@ -1,8 +1,9 @@
-[gd_scene load_steps=7 format=3]
+[gd_scene load_steps=8 format=3]
 
 [ext_resource type="Script" path="res://main.gd" id="1_main"]
 [ext_resource type="Resource" path="res://levels/valley.tres" id="2_level"]
 [ext_resource type="Script" path="res://terrain/terrain.gd" id="3_terrain"]
+[ext_resource type="Script" path="res://entities/spawner.gd" id="4_spawn"]
 [ext_resource type="Script" path="res://effects/explosion_director.gd" id="5_fx"]
 [ext_resource type="PackedScene" path="res://tank/tank.tscn" id="6_tank"]
 [ext_resource type="PackedScene" path="res://UI/UI.tscn" id="7_ui"]
@@ -27,6 +28,15 @@ voxel_size = 2.0
 chunks_x = 4
 chunks_y = 2
 chunks_z = 4
+
+[node name="Spawn" type="Node3D" parent="."]
+script = ExtResource("4_spawn")
+candidates_per_axis = 20
+sightline_range = 60.0
+sightline_directions = 8
+sightline_steps = 8
+eye_height = 2.0
+edge_margin = 6.0
 
 [node name="Effects" type="Node3D" parent="."]
 script = ExtResource("5_fx")

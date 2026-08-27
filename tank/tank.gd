@@ -111,11 +111,23 @@ func _ready() -> void:
 	turret_yaw = rotation_degrees.y
 	Input.set_mouse_mode(Input.MOUSE_MODE_CAPTURED)
 
-	# Layer 2 is the tank. It masks layer 1 (terrain) only: shells are on
-	# layer 3 and must pass through the tank that fired them, which they do by
-	# not being masked here and by not masking this layer themselves.
-	collision_layer = 1 << 1
-	collision_mask = 1 << 0
+	# The plan's mask table for the player tank, transcribed rather than
+	# re-derived: layer PLAYER, masking TERRAIN and ENEMIES. Named bits because
+	# the editor numbers layers from 1 and code shifts from bit 0, and every
+	# place those two schemes meet is a chance to be off by one.
+	#
+	# ENEMIES was added when guardians got a layer of their own. Without it the
+	# tank drives straight through a guardian hull - which is not a crash, not a
+	# warning and not visible in any headless test.
+	#
+	# Shells are still not masked here: they are on the reserved PLAYER_SHELLS
+	# bit, carry no body at all, and must pass through the tank that fired them.
+	#
+	# THIS IS THE ONLY PLACE THE TANK'S LAYERS ARE SET. tank.tscn used to carry
+	# the same two values, which meant two places to disagree and this one
+	# silently winning. See CollisionLayers' header.
+	collision_layer = CollisionLayers.PLAYER
+	collision_mask = CollisionLayers.TERRAIN | CollisionLayers.ENEMIES
 
 
 func _unhandled_input(event: InputEvent) -> void:
