@@ -21,8 +21,22 @@
     "intent": "Crop a REAL glen roughly 2 km across and compress it into the 192 m game world. Do NOT map the real world 1:1 - at 30 m/px that would give ~6x6 samples and a featureless ramp.",
     "target": "Glen Coe or Glen Etive, Scottish Highlands. Wild Metal Country was made in Dundee and its landscapes read as highlands.",
     "approximate_centre": "Glen Coe is near 56.67 N, -5.03 E. APPROXIMATE - frame the exact crop by eye in OpenTopography's map selector, do not trust these numbers as surveyed.",
+
+    "realised_bbox": {
+      "note": "THE CROP ACTUALLY DOWNLOADED, 2026-08-27, read back off the .asc header rather than from what was typed into the form. assets/incoming/ is gitignored on the premise that downloads are re-fetchable from this file - that premise only holds if the exact box is written down, and before this it was not. Re-request these four numbers to reproduce the file byte-for-byte.",
+      "xmin": -5.046527777755,
+      "ymin": 56.660972222222,
+      "xmax": -5.013472222173,
+      "ymax": 56.679027777792,
+      "derivation": "xmin/ymin are the .asc xllcorner/yllcorner verbatim; xmax/ymax are those plus ncols*cellsize and nrows*cellsize (119 and 65 cells at 0.000277777778 deg).",
+      "output_format": "Arc ASCII Grid - NOT GeoTiff. Plain text, so the conversion needs no GDAL.",
+      "visualization": "None. The Raster Visualization options (hillshade, colour-relief, slope) produce a PICTURE OF terrain rather than elevation values, and a file that looks like success."
+    },
+
     "span_arithmetic": "At 56.67 N: 1 deg latitude ~= 111 km, so 2 km ~= 0.018 deg. 1 deg longitude ~= 111 * cos(56.67) ~= 61 km, so 2 km ~= 0.033 deg. A 2 km box is therefore about 0.018 deg tall and 0.033 deg wide - note it is NOT square in degrees.",
-    "expected_raster": "~67 x 67 px for a 2 km crop at 30 m/px.",
+    "expected_raster": "~67 x 67 px for a 2 km crop at 30 m/px. WRONG - see measured_raster.",
+    "measured_raster": "Downloaded 2026-08-27: 119 x 65 cells at 1 arcsec, ground footprint 2022 x 2010 m. The prediction assumed square PIXELS; an .asc in EPSG:4326 has cells square in DEGREES, and a degree of longitude is only ~61 km at 56.67 N against ~111 km for a degree of latitude. A square patch of ground therefore arrives as a 1.83:1 rectangle of pixels. .claude/scripts/dem_to_heightmap.py resamples to square before writing, so downstream may assume isotropic pixels. Re-cropping at a different latitude changes the aspect and the same treatment handles it.",
+    "measured_elevation_m": "min 64, max 941, mean 328, range 877. Zero NODATA voids. Puts height_scale at ~0.0194 to match this world's ~17 m of relief - at the low edge of the 0.02-0.05 predicted in the foundation plan.",
     "compression": "~10.4x horizontal into the 192 m footprint.",
     "vertical_warning": "Real relief in Glen Coe is several hundred metres. Compressed into a world whose current terrain has ~17 m of relief (SDFHills amplitude 22), height_scale on SDFHeightmap will need to be a SMALL fraction of real - order 0.02-0.05. Tune it against Terrain.surface_height_range(), which returns measured min/max/mean, rather than guessing."
   },
