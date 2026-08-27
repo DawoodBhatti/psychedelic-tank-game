@@ -53,6 +53,11 @@ and **40 engine launches**, the one that actually bites. Both are per **session*
 reset, so **one `/build` per session**. On hitting either wall, stop and report. Do not raise
 the ceiling.
 
+**Read both with `.claude/scripts/budget.sh`** — the hooks' own counters, no launch spent, and
+the only figure to report. Never tally your own launches, and never use `newest-log.sh count`:
+one is arithmetic (an enumerated "8 of 40" measured **32**), the other is wall clock across
+every session that ever ran.
+
 ## Guards
 `.claude/settings.json` wires the PreToolUse hooks and the permission lists. A SessionStart
 hook prints `GUARDS: armed (root …)`. **If that line is absent, the guards are off**, whatever
@@ -81,9 +86,10 @@ into **one** command.
 ## Environment
 
 **Use the wrapper scripts in `.claude/scripts/`: `gd.sh` to launch the engine, `newest-log.sh`
-to read logs, `diff.sh` to read the working-tree diff.** All three are allowlisted and run
-without prompting, and `gd.sh` is the only sanctioned way to start the engine — the raw binary
-path is no longer allowlisted.
+to read logs, `diff.sh` to read everything changed since the last commit (staged or not),
+`budget.sh` to read the budget counters.** All four are allowlisted and run without prompting,
+and `gd.sh` is the only sanctioned way to start the engine — the raw binary path is no longer
+allowlisted.
 
 ```bash
 .claude/scripts/gd.sh --headless -- --harness-check-resources
@@ -92,9 +98,7 @@ path is no longer allowlisted.
 
 `gd.sh` prints the HARNESS and error lines, then
 `GD: exit=<code> script_errors=<n> log=<path>`, and exits with the **engine's** status. **Quote
-that `log=` path for every launch you report**, and take the launch *count* from the line the
-launch hook prints on every launch — never from `newest-log.sh count`, which is wall clock
-across all sessions and can only ever prove a shortfall. Pass `--raw` for unfiltered output.
+that `log=` path for every launch you report.** Pass `--raw` for unfiltered output.
 It resolves the `_console.exe` binary itself — the plain one does not attach stdout, so no
 test can read output; override with `GODOT_BIN` if the install moves.
 
@@ -107,8 +111,8 @@ That folder name is derived by Godot from `application/config/name` in `project.
 configured nowhere else. **Renaming the project without editing `newest-log.sh` makes it read
 a different project's logs**, which exist and are well-formed. Change both or neither.
 
-`newest-log.sh` takes `path`, `errors`, `fps`, `grep <pattern>`, `count [minutes]`, or no
-argument for a summary; `-n 2` reads the run *before* the last one.
+`newest-log.sh` takes `path`, `errors`, `fps`, `grep <pattern>`, or no argument for a summary;
+`-n 2` reads the run *before* the last one.
 
 ---
 

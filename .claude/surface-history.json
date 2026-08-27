@@ -31,6 +31,22 @@
         ".claude/commands/usage.md": 773,
         ".claude/settings.json": 5238
       }
+    },
+    {
+      "date": "2026-08-27",
+      "label": "fold 2",
+      "total": 56207,
+      "files": {
+        "CLAUDE.md": 20361,
+        ".claude/agents/doer.md": 2933,
+        ".claude/agents/modeller.md": 6034,
+        ".claude/agents/reviewer.md": 4359,
+        ".claude/commands/build.md": 6017,
+        ".claude/commands/consolidate.md": 6679,
+        ".claude/commands/source-model.md": 3587,
+        ".claude/commands/usage.md": 773,
+        ".claude/settings.json": 5464
+      }
     }
   ]
 }

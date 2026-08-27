@@ -151,6 +151,12 @@
           },
           {
             "type": "command",
+            "command": "bash .claude/hooks/run.sh guard_eval_orphan",
+            "timeout": 15,
+            "statusMessage": "Checking the eval frees what it builds..."
+          },
+          {
+            "type": "command",
             "command": "bash .claude/hooks/run.sh guard_bash_decoration",
             "timeout": 15,
             "statusMessage": "Checking the command is not decorated..."

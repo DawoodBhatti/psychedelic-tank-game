@@ -285,6 +285,87 @@ line where an agent will meet it; this is the measurement that bought it.
 
 ---
 
+## Fold 2 — 2026-08-27
+
+Three entries in, three out. **`SURFACE: 55785 → 56207, +422`**, measured before this section
+was written. **It went up, and 226 of it is one JSON block** — the `settings.json` registration
+for a new hook. The three prose-bearing files moved +196 between them, and the fold's one
+duplication (the same launch-count evidence written into both `CLAUDE.md` and `build.md`) was
+cut on the second measurement, worth -108.
+
+That trade is the point rather than an excuse: two of the three entries left the auto-loaded
+surface entirely and became executable, and a hook costs its bytes once in a config file
+instead of on every turn of every session.
+
+**Evidence stripped off the in-force surface and kept here.**
+
+- **A self-reported launch count is not the counter** (`scripts/budget.sh`,
+  `CLAUDE.md § Budgets`). Session D's Doer closed its report with "Engine launches: **8 of
+  40**" and enumerated eight `session_*.log` paths beneath it, one of which was in fact the
+  orchestrator's own before-batch. The orchestrator carried "8 spent" into the Reviewer's brief
+  as fact. The Reviewer's first launch printed the hook line reading **17** and it said so.
+  The counter file for that session (`<temp>/claude-pipeline/godot-launches/66dd6095-…`) was
+  read during this fold and holds **32**: the report was wrong by a factor of four, while
+  presenting itself as careful accounting.
+
+  The structural cause is that the authoritative number was only ever *printed on a launch*, so
+  the orchestrator between two agents could not read it without spending the thing it was
+  counting, and `newest-log.sh count` is wall clock across all sessions. The counters are plain
+  files; `budget.sh` reads both and costs nothing. Prose was already in place telling agents to
+  take the hook's number — it did not survive contact with an agent that had done its own
+  arithmetic, which is the argument for a command over a rule.
+
+  It reports a **missing** counter file as missing rather than as 0, and distinguishes the two:
+  an `agent-turns` file with no `godot-launches` file means the session id is right and the
+  engine genuinely has not started. Verified against three recorded sessions
+  (`66dd6095` → 6/32, `94c90081` → 3/0, this session → neither file).
+
+- **`diff.sh` was silent on a staged tree** (`scripts/diff.sh`). Session D's work was committed
+  and soft-reset, leaving all 29 paths in the index. On that tree `.claude/scripts/diff.sh |
+  wc -l` printed **0** while `git diff HEAD --stat` printed **29 files changed, 1428
+  insertions(+)**. A bare `git diff` compares the working tree to the *index*, so staging
+  hides a change from it completely — and the Reviewer, whose one instruction is to read the
+  diff with that script, would have received an empty result and exit 0 with nothing to
+  separate "nothing changed" from "everything is staged". The pipeline's own
+  stage-then-review workflow creates the state.
+
+  Fixed by supplying `HEAD` when the caller names no revision, so the question becomes "what
+  changed since the last commit" regardless of `git add`; naming a revision turns the default
+  off. Empty output now says which empty it is, on **stderr**, so a pipe into `wc -l` still
+  shows it, and names untracked files separately because they appear in no diff at all.
+  Reproduced end to end during the fold: staged tree, `diff.sh | wc -l` → **98**, index
+  restored.
+
+  The entry proposed `agent-file` as the target. It went a rung higher on purpose — the tool
+  is wrong for every caller, not just the Reviewer, and `reviewer.md` needed **no edit at all**
+  once the script was fixed. A rule telling the Reviewer to distrust an empty diff would have
+  been a rule about a bug.
+
+- **An eval that constructs a node cannot free it, and the leak reads as a game defect**
+  (`hooks/guard_eval_orphan.py`). `scene.tank.shell_scene.instantiate().hit_mask` returns the
+  right number and leaves orphaned RIDs, which Godot reports at exit into
+  `session_20260827_122612_354.log` — the same session log `CLAUDE.md` test 3 fails the run on.
+  `Expression` evaluates one expression: nowhere to bind a temp, nowhere to sequence a `free()`.
+  The cost was not the leak but the argument about whose leak it was: the Doer had to defend it
+  in its report and the orchestrator had to pre-empt the attribution in the Reviewer's brief,
+  or a launch would have gone on deciding whether the game leaked.
+
+  Going through the game's own construction path parents the object and hands its lifetime to
+  the tree. Measured on `session_20260827_123141_365.log`: `scene.tank.fire()` then reading
+  `scene.get_child(scene.get_child_count() - 1)` gave `hit_mask` = 1, `shells_fired` = 1,
+  `errors=0 warnings=0`, no leak lines — on a launch that also freed 17 entities through a
+  second `scatter()`.
+
+  The entry proposed `CLAUDE.md § The dev harness`, beside the other eval limits. It became a
+  hook instead, on `guard_vacuous_eval`'s precedent and for its reason: a failure that is
+  invisible in its own output — here, worse, *legible as something else* — is the case a
+  remembered rule answers worst. The guard matches `instantiate(` only, which is a `PackedScene`
+  method and always yields a Node, so there is no false positive to trade against; an
+  `instantiate()` wrapped in `add_child(...)` is parented and allowed. 13 cases,
+  `test_guard_eval_orphan.py`, all passing.
+
+---
+
 ## Open questions for this project
 
 Written down so they are not re-derived from scratch, and so a `/consolidate` can see what is
@@ -303,3 +384,15 @@ still unsettled. None of these is a rule.
   path that does the carving, which `CLAUDE.md` warns is a re-execution rather than a check.
   The independent quantity is the chunk's `mesh.get_aabb()` and its triangle count, which
   change shape when material is actually removed and read back non-empty headless.
+- **Whether a `Node.new()` inside an eval leaks the way `instantiate()` does.** It should —
+  same absent `free()` — but `guard_eval_orphan.py` deliberately does not match `.new()`,
+  because most `.new()` calls in an eval are RefCounted (`RandomNumberGenerator`, any
+  `Resource`) and free themselves, and no text guard can tell the two apart. Nobody has hit the
+  Node case here yet. If one is measured, that is an inbox entry with a log path in it, not a
+  reason to widen the pattern now.
+- **Whether the counter's known over-count now matters more.** `settings.json` has a fifth
+  `Bash` guard as of this fold, and a denied call still leaves the launch increment written
+  (see above). `budget.sh` reports that same number, so it inherits the skew — one high per
+  denied engine command, failing safe. It has never been observed to exceed one or two in a
+  session; if a run ever plans around a figure that is wrong in the *expensive* direction, that
+  is the evidence that moves the commit to `PostToolUse`.

@@ -40,8 +40,8 @@ permanently — and you are the party least able to predict what a refactor will
    Require it to report: what it changed, the numbers it relied on, and explicitly what it
    did *not* verify.
 
-   Then check the launches happened: `.claude/scripts/newest-log.sh count`, subject to the
-   caveat in CLAUDE.md § Environment about what that number cannot answer.
+   Then read what it actually spent: `.claude/scripts/budget.sh`. **Never carry an agent's
+   self-reported launch count into the next brief** — CLAUDE.md § Budgets says why not.
 
 2. **Spawn `reviewer`** with the original task, the Doer's stated plan and its report.
    The Reviewer needs the intent, not just the diff — it is judging whether the change does
@@ -96,7 +96,7 @@ Zero entries is the ordinary outcome. Do not manufacture one to have something t
 Report to the user:
 - What was built, in a sentence or two.
 - The Reviewer's final measured numbers (fps, load time, resources, any values verified).
-- Budget used: agent turns out of 12, engine launches out of 40.
+- Budget used, quoting `.claude/scripts/budget.sh` rather than a tally.
 - What the run cost. Run `python .claude/scripts/usage_report.py` and report three numbers:
   total effective tokens, the context size now, and the cost of one more turn. If the context
   is past 300k, say plainly that the next task should start in a fresh session.
