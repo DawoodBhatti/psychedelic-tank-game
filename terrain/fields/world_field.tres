@@ -1,23 +1,24 @@
-[gd_resource type="Resource" script_class="TerrainField" load_steps=6 format=3]
+[gd_resource type="Resource" script_class="TerrainField" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://terrain/sdf/TerrainField.gd" id="1_field"]
-[ext_resource type="Script" path="res://terrain/sdf/SDFHills.gd" id="2_hills"]
+[ext_resource type="Script" path="res://terrain/sdf/SDFHeightmap.gd" id="2_dem"]
 [ext_resource type="Script" path="res://terrain/sdf/SDFComposite.gd" id="3_stack"]
+[ext_resource type="Texture2D" uid="uid://bplv0sa62l0r1" path="res://terrain/heightmaps/valley-heightmap.png" id="4_raster"]
 
-[sub_resource type="Resource" id="Res_hills"]
-script = ExtResource("2_hills")
-amplitude = 22.0
-frequency = 0.011
-noise_seed = 1337
-octaves = 4
-persistence = 0.42
-plateau_strength = 0.25
-plateau_step = 6.0
+[sub_resource type="Resource" id="Res_dem"]
+script = ExtResource("2_dem")
+heightmap = ExtResource("4_raster")
+elevation_min_m = 64.0
+elevation_range_m = 877.0
+datum_elevation_m = 327.75
+height_scale = 0.04
 vertical_offset = 0.0
+world_size = Vector2(192, 192)
+world_centre = Vector2(0, 0)
 
 [sub_resource type="Resource" id="Res_ground"]
 script = ExtResource("3_stack")
-layers = Array[SDF]([SubResource("Res_hills")])
+layers = Array[SDF]([SubResource("Res_dem")])
 
 [resource]
 script = ExtResource("1_field")

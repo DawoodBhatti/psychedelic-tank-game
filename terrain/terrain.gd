@@ -218,6 +218,27 @@ func surface_height_range(samples_per_axis: int = 24) -> Vector3:
 	return Vector3(lo, hi, total / count)
 
 
+## Smallest distance from the ground surface to the roof or the floor of the
+## meshed volume, over the same grid surface_height_range() walks. Positive
+## means the whole surface fits inside the chunk grid with that much room to
+## spare; zero or negative means part of the ground is outside the sampled
+## volume.
+##
+## WHAT IT IS FOR. The ground field decides where mass lands and nothing else
+## measures whether it landed inside the box that gets meshed. A surface that
+## leaves the volume does not error, does not warn and does not fail any test in
+## the sequence - marching cubes simply finds no sign change up there and emits
+## no triangles, so a plateau shears off flat and the world looks finished. This
+## is the same job Terrain.last_carve_clearance does for carving, in the
+## vertical direction, for generation.
+##
+## Computed on read from the live field, so it cannot go stale and costs nothing
+## when nobody asks.
+func surface_clearance(samples_per_axis: int = 24) -> float:
+	var relief := surface_height_range(samples_per_axis)
+	return minf(relief.x - _world_min.y, _world_max.y - relief.y)
+
+
 ## Half-width of the world on X, for anything that needs to stay inside it.
 func world_extent_x() -> float:
 	return chunks_x * _extent * 0.5

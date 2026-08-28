@@ -1,0 +1,26 @@
+{
+  "source": "assets/incoming/rasters_NASADEM/output_be.asc",
+  "source_grid": {
+    "ncols": 119,
+    "nrows": 65,
+    "cellsize_deg": 0.000277777778
+  },
+  "output_grid": {
+    "width": 119,
+    "height": 119
+  },
+  "ground_footprint_m": {
+    "width": 2021.9,
+    "height": 2009.9
+  },
+  "pixel_aspect_corrected": 1.82,
+  "elevation_m": {
+    "min": 64.0,
+    "max": 941.0,
+    "mean": 327.75,
+    "range": 877.0
+  },
+  "nodata_cells_filled": 0,
+  "encoding": "16-bit greyscale PNG, row 0 = NORTH, elevation_m = min + (sample / 65535) * range",
+  "height_scale_hint": "This world has ~17 m of relief (SDFHills amplitude 22). Real range here is 877.0 m, so a 1:1 mapping is ~51.6x too tall. Tune against Terrain.surface_height_range(), do not guess."
+}

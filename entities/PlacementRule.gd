@@ -17,8 +17,24 @@ class_name PlacementRule
 # EVERY THRESHOLD IN AN AUTHORED RULE SHOULD SIT BETWEEN TWO MEASURED NUMBERS.
 # TerrainAnalysis.metrics_summary() prints the quantiles of this valley to the
 # session log on every load; put a rule's bounds against those, not against
-# intuition. Session C replaces the hills with a real DEM, at which point every
-# authored bound here needs re-deriving from the new quantiles.
+# intuition.
+#
+# THAT HAS ALREADY BITTEN ONCE. Session C swapped the fBm hills for the Glen Coe
+# DEM and every bound in valley.tres went stale in the same instant, because the
+# quantiles moved underneath them - the old `min_slope_degrees = 12` was the old
+# pool's p25 and became steeper than the new pool's p75, so it rejected 375
+# candidates and the prop group placed 6 of 12. Nothing about the rule was
+# wrong; it was measured against a valley that no longer existed. Re-read the
+# quantiles after ANY change to the ground field.
+#
+# The pool as it stands (400 candidates, SDFHeightmap at height_scale 0.04):
+#   slope degrees  min 0.0    p25 5.246  p50 12.853  p75 17.434  max 42.687
+#   openness       min 0.516  p25 0.641  p50 0.703   p75 0.813   max 1.0
+#   height         min -10.0  p25 -9.054 p50 -4.343  p75 5.908   max 21.927
+#
+# Elevation is the exception that needs no re-deriving: it is a RANK, so
+# "the top third of this valley" survives the valley changing underneath it.
+# That is the whole reason TerrainAnalysis ranks instead of thresholding.
 
 ## Slope band in degrees from horizontal. Guardians want ground flat enough to
 ## stand on; props want the slopes nothing drives across.
