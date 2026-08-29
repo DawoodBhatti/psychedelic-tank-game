@@ -27,14 +27,26 @@ class_name PlacementRule
 # wrong; it was measured against a valley that no longer existed. Re-read the
 # quantiles after ANY change to the ground field.
 #
-# The pool as it stands (400 candidates, SDFHeightmap at height_scale 0.04):
-#   slope degrees  min 0.0    p25 5.246  p50 12.853  p75 17.434  max 42.687
-#   openness       min 0.516  p25 0.641  p50 0.703   p75 0.813   max 1.0
-#   height         min -10.0  p25 -9.054 p50 -4.343  p75 5.908   max 21.927
+# AND IT WAS RE-READ AGAIN when the world was widened to 384 m at height_scale
+# 0.08. That pass is a uniform 2x scale of the same glen, so it left every slope
+# angle alone and merely doubled the height axis - which is exactly the shape of
+# change that looks like it needs no re-measuring and does. The height row below
+# moved by a factor of two; slope and openness drifted, because the analysis
+# constants (slope_step 2.0, eye_height 2.0, sight_range 60) are in world units
+# and so measure a proportionally smaller feature on a bigger world. The authored
+# bounds in valley.tres survived it - 17 of 17 placed, 0 failures - but that was
+# measured, not assumed.
+#
+# The pool as it stands (400 candidates, SDFHeightmap at height_scale 0.08 over a
+# 384 m footprint):
+#   slope degrees  min 0.0     p25 5.570   p50 13.181  p75 18.069  max 46.502
+#   openness       min 0.469   p25 0.641   p50 0.703   p75 0.828   max 1.0
+#   height         min -20.343 p25 -17.839 p50 -7.943  p75 13.383  max 45.207
 #
 # Elevation is the exception that needs no re-deriving: it is a RANK, so
 # "the top third of this valley" survives the valley changing underneath it.
-# That is the whole reason TerrainAnalysis ranks instead of thresholding.
+# That is the whole reason TerrainAnalysis ranks instead of thresholding, and it
+# is why the widening pass above cost nothing despite doubling the height row.
 
 ## Slope band in degrees from horizontal. Guardians want ground flat enough to
 ## stand on; props want the slopes nothing drives across.
@@ -56,12 +68,15 @@ class_name PlacementRule
 ##
 ## THIS ONE CANNOT REACH 0, AND A BOUND BELOW THE FLOOR IS INERT. Candidates are
 ## already held `Spawner.edge_margin` inside the world, so the smallest
-## achievable value is `edge_margin / world_extent` - 6 / 96 = 0.0625 today. The
-## first version of valley.tres authored 0.06 and 0.03 here, both below that
-## floor, so neither bound could ever reject anything: the rules read as though
-## they excluded the map edge and did nothing at all. Compute the floor before
-## authoring a minimum, and prefer leaving these at their permissive defaults
-## when `edge_margin` already does the job.
+## achievable value is `edge_margin / world_extent` - 6 / 192 = 0.03125 today.
+## THE FLOOR MOVES WITH THE WORLD: it was 6 / 96 = 0.0625 before the grid was
+## widened, and a margin held constant while the extent doubles halves it. The
+## first version of valley.tres authored 0.06 and 0.03 here, both below the
+## 0.0625 floor of the smaller world they were written against, so neither bound
+## could ever reject anything: the rules read as though they excluded the map
+## edge and did nothing at all. Compute the floor before authoring a minimum, and
+## prefer leaving these at their permissive defaults when `edge_margin` already
+## does the job.
 ##
 ## NOTE THE ASYMMETRY WITH THE OTHER THREE METRICS: slope, openness and
 ## elevation are published as quantiles by TerrainAnalysis.metrics_summary() and

@@ -25,9 +25,9 @@ directional_shadow_max_distance = 320.0
 script = ExtResource("3_terrain")
 chunk_resolution = 24
 voxel_size = 2.0
-chunks_x = 4
-chunks_y = 2
-chunks_z = 4
+chunks_x = 8
+chunks_y = 3
+chunks_z = 8
 
 [node name="Spawn" type="Node3D" parent="."]
 script = ExtResource("4_spawn")

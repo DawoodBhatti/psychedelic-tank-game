@@ -1,9 +1,14 @@
 extends Node3D
 class_name Terrain
 
-# The destructible world: a 3D grid of marching-cubes chunks, all meshing the
-# same shared TerrainField, plus the one operation that makes the game a game -
-# carve().
+# The world: a 3D grid of marching-cubes chunks, all meshing the same shared
+# TerrainField, plus the operation that cuts holes in it - carve().
+#
+# CARVING IS BUILT, WIRED AND CURRENTLY OFF. `destructible` below defaults to
+# false, so nothing here subscribes to the shell bus and the ground is static.
+# Every piece of the machinery is still present and still works - carve(),
+# reset(), the field's crater stack - and one bool brings it back. Read the
+# flag's docblock for why it is a setter and not a plain var.
 #
 # The division of labour is worth stating once. TerrainField knows what the
 # world is MADE OF and nothing about how it is cut up. TerrainChunk knows how
@@ -33,6 +38,27 @@ class_name Terrain
 ## Material handed to every chunk. Shared deliberately - one material for the
 ## whole world means the neon look is retuned in one place.
 @export var surface_material: Material
+
+## Whether a shell cuts a hole in the world. OFF by default, and that is the
+## whole of the switch: nothing below has been removed, so turning this on
+## restores destruction exactly as it was.
+##
+## IT IS A SETTER RATHER THAN A PLAIN FLAG, AND THAT IS LOAD-BEARING TWICE.
+##
+##   - ORDER. Terrain is a child of main.tscn, so Terrain._ready() runs BEFORE
+##     LevelRunner._ready() - children are ready before their parent. A flag
+##     written later from a LevelDef would arrive after a connection made once
+##     in _ready() and be silently ignored, which is the shape of wrong where
+##     the code reads correctly and the behaviour never changes.
+##   - MEASURABILITY. The harness can flip this on the live scene and watch
+##     GameEvents.shell_exploded.get_connections() go 1 -> 2, which proves the
+##     flag is actually READ. A scene-authored @export alone can only ever be
+##     observed in the state it was authored in, so a flag that nothing consults
+##     would test identically.
+@export var destructible: bool = false:
+	set(value):
+		destructible = value
+		_apply_destructible()
 
 ## Total chunks in the grid. Harness-facing.
 var chunks_total: int = 0
@@ -68,7 +94,10 @@ func _ready() -> void:
 		field = TerrainField.new()
 		field.ground = SDFHills.new()
 
-	GameEvents.shell_exploded.connect(_on_shell_exploded)
+	# The `destructible` setter already fired once, while the scene was being
+	# instantiated and this node was not in the tree yet, so it deferred the
+	# subscription to here. Everything after this point is driven by the setter.
+	_apply_destructible()
 
 
 ## Builds every chunk. Synchronous and slow by design - the level is not
@@ -255,6 +284,33 @@ func world_floor() -> float:
 
 func _on_shell_exploded(position: Vector3, radius: float) -> void:
 	carve(position, radius)
+
+
+# Brings the bus subscription in line with `destructible`.
+#
+# IDEMPOTENT ON PURPOSE, because the setter fires more than once and from more
+# than one place: once per assignment while the scene loads, again from _ready(),
+# and again for every runtime flip. is_connected() before each side means a
+# double-set cannot stack two subscriptions - which would carve the same crater
+# twice and rebuild every touched chunk twice - and a double-clear cannot push an
+# error about disconnecting something that was never connected.
+#
+# is_inside_tree() is the guard that does the work: the setter's FIRST call comes
+# while the scene is being instantiated, when this node exists and the tree does
+# not have it yet, and connecting from there would be connecting on behalf of a
+# node that may never be added. is_instance_valid() is the cheaper half - the
+# autoload is present for the whole of a normal run, so it only covers teardown,
+# where a set arriving after GameEvents has been freed would otherwise be a
+# null-instance error on the way out.
+func _apply_destructible() -> void:
+	if not is_inside_tree() or not is_instance_valid(GameEvents):
+		return
+
+	var connected := GameEvents.shell_exploded.is_connected(_on_shell_exploded)
+	if destructible and not connected:
+		GameEvents.shell_exploded.connect(_on_shell_exploded)
+	elif not destructible and connected:
+		GameEvents.shell_exploded.disconnect(_on_shell_exploded)
 
 
 func _recount_triangles() -> void:

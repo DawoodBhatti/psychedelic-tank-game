@@ -3,7 +3,8 @@
 _prototyping a 3d game_ — Godot 4.7, GDScript.
 
 A minimalist prototype inspired by *Wild Metal Country* and *Deep Rock Galactic*.
-🧠 Procedural terrain meets chunky tank combat and dynamic environment destruction.
+🧠 Procedural terrain meets chunky tank combat, with dynamic environment destruction built in
+and currently switched **off** behind `Terrain.destructible`.
 
 ---
 
@@ -12,7 +13,7 @@ A minimalist prototype inspired by *Wild Metal Country* and *Deep Rock Galactic*
 | Feature | How it works |
 |---|---|
 | 🌄 Procedural hills | fBm Perlin heightmap expressed as a signed distance field (`terrain/sdf/SDFHills.gd`), meshed by CPU marching cubes. |
-| 💥 Destructible world | A shell subtracts a sphere from the shared field and only the chunks it reaches are re-meshed (`Terrain.carve()`). Real holes, not dents — overhangs and see-through gaps included. |
+| 💥 Destructible world — **off by default** | A shell subtracts a sphere from the shared field and only the chunks it reaches are re-meshed (`Terrain.carve()`). Real holes, not dents — overhangs and see-through gaps included. Nothing is removed: `Terrain.destructible` is `false`, so the terrain simply does not subscribe to the shell bus. Set it true — in `main.tscn` or at runtime — and destruction is back exactly as it was. |
 | 🛞 Tank physics | `CharacterBody3D` with drag-limited drive, speed-scaled steering, boost and handbrake. The body only yaws; the visible lean over slopes is applied to the hull mesh, so input never stops meaning what it says. |
 | 🎯 Turret | Aimed in **world space**, so the gun holds its target while the hull turns underneath it. Camera shares the gun's elevation. |
 | 🧨 Fireable shells | Raycast-swept rather than simulated, so a 95 m/s shell cannot tunnel through a crater lip. Impact point is exact, because it is the centre of the crater. |

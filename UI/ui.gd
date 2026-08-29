@@ -61,5 +61,11 @@ func _process(_delta: float) -> void:
 	# readout the player is actually looking at when it matters.
 	crosshair.modulate = Color(1, 1, 1, 1) if fraction >= 1.0 else Color(1, 1, 1, 0.35)
 
+	# The crater count is only information while the ground can actually be cut.
+	# With Terrain.destructible off it is dead text pinned at 0, so the readout
+	# drops it and keeps the triangle count, which still moves with the world.
 	if terrain != null:
-		craters_label.text = "%d craters   %d tris" % [terrain.craters_carved, terrain.triangles_total]
+		if terrain.destructible:
+			craters_label.text = "%d craters   %d tris" % [terrain.craters_carved, terrain.triangles_total]
+		else:
+			craters_label.text = "%d tris" % terrain.triangles_total

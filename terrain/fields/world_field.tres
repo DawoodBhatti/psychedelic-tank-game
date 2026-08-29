@@ -11,9 +11,9 @@ heightmap = ExtResource("4_raster")
 elevation_min_m = 64.0
 elevation_range_m = 877.0
 datum_elevation_m = 327.75
-height_scale = 0.04
+height_scale = 0.08
 vertical_offset = 0.0
-world_size = Vector2(192, 192)
+world_size = Vector2(384, 384)
 world_centre = Vector2(0, 0)
 
 [sub_resource type="Resource" id="Res_ground"]

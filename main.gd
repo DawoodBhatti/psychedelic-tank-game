@@ -79,10 +79,17 @@ var chunks_total: int:
 ## Triangles across the whole terrain.
 ##
 ## Note it goes UP when a crater is carved, not down: a hole has walls, and
-## those walls are new surface. Measured, on a radius-8 crater at the origin:
-## 28414 -> 28498. So this proves the mesh CHANGED, and is not on its own
-## evidence that material was removed - for that, compare a chunk's
-## get_mesh_aabb() or look at the pixels.
+## those walls are new surface. Re-measured on the current 8x3x8 grid, with
+## Terrain.destructible flipped on at runtime and a radius-8 crater dropped on
+## the surface at the origin: 95058 -> 95206. So this proves the mesh CHANGED,
+## and is not on its own evidence that material was removed - for that, compare a
+## chunk's get_mesh_aabb() or look at the pixels.
+##
+## IT IS ALSO WHAT SAYS CARVING IS OFF, which is what it is doing most of the
+## time now: Terrain.destructible defaults to false, so emitting shell_exploded
+## leaves this number where it was. craters_carved below staying 0 is the weaker
+## half of that check - it is written by the carve - while this is derived from
+## the meshes.
 var terrain_triangles: int:
 	get:
 		return terrain.triangles_total if terrain != null else 0
