@@ -37,10 +37,31 @@ session.
 ---
 
 ## S1 — Feel pass: recoil, aim coupling, contour lines
-- status: todo
+- status: done
 - depends: S0
-- gate: `recoil` reads 2.0; the camera's forward vector pitches **up** as the gun rises,
-  measured at two barrel pitches; contour banding measurable against a control shot.
+- landed: 2026-08-29, Reviewer-verified. **Recoil** 4.0 → 2.0, read 2.0 off the live node;
+  `fire()`'s recoil line untouched. **Camera coupling** `-barrel_pitch * 0.6 - 10.0` →
+  `barrel_pitch * 0.6 - 5.0`: camera forward Y **−0.2113** at `barrel_pitch` −12 and **+0.3453**
+  at +42, so the view now rises with the gun — while `_apply_aim()` is untouched and the muzzle
+  still follows the mouse (forward Y −0.208 on mouse-down, +0.669 on mouse-up), which is the
+  half that says the *wrong* fix was not made. **Contours** added to the shader **and** the
+  material: the `.tres` overrides every one of those uniforms, so editing the shader alone would
+  have been dead code. Live read off the rendering chunk: `contour_strength 1.8`,
+  `contour_interval 4.0`, `contour_index_every 5.0`, `contour_color (1.0, 0.62, 0.16)`,
+  `emission_strength` 2.4 → 1.6, `line_width` 0.045 → 0.035. Banding confirmed against a
+  constructed zero — a sky region moved `delta.luma_mean +0.3` and `delta.hue_frac.grey 0.0000`,
+  so there was no global exposure change — with 40 horizontal strips at y 0.70–0.80 giving
+  `delta.luma_mean` +11.1 → +28.8 on a ~29 px period and `delta.hue_frac.grey` +0.238 → +0.684
+  **in phase**, and troughs reaching −0.7 at y 0.56–0.64. Tests 1–6 pass; fps min 107 avg 118.6,
+  load 4.702 s, `check_resources PASS {"checked":12,"failed":[]}`, zero errors and zero warnings.
+- unverified: **the camera at full elevation.** At `barrel_pitch` 42 the uncollided `Camera3D`
+  sits 1.79 m *below* the hull origin. The SpringArm (mask 1, margin 0.5) pulls it in, so the
+  view collapses toward the turret rather than clipping into rock — but the harness cannot drive
+  input and `--harness-shot` renders an explicit pose, not the game camera. Needs thirty seconds
+  of hands at full elevation. If it reads badly, the dial is the `0.6` coefficient.
+- also unverified: the mouse binding itself. `--harness-eval` cannot reach `Input`, so that
+  mouse-up yields a negative `relative.y` is read off the code rather than measured. Both agents
+  called `_apply_aim()` directly, which is what `CLAUDE.md § The dev harness` says to do here.
 
 Three small, independent changes. Bundled because each is minutes of work and a session's
 budget is 40 launches. This is also the session that proves `/begin` works end to end, so keep
@@ -217,7 +238,13 @@ Cost is fixed regardless of world size. Concretely: **6 levels, 64×64 quads eac
    it *feels* right is for the eye, and it is now a cheap dial rather than a cubic-cost
    decision. Re-measure `max_world_gradient` after and expect it back near 1.89.
 
-4. **Retune what assumed a small world.** `fog_density` 0.0022 gives ~450 units of visibility
+4. **Retune `contour_interval` with the rest.** S1 shipped it at 4.0 against a measured
+   `field.ground.vertical_extent()` of **49.06** (relief span ~68 units), which gives roughly 12
+   minor and 2–3 index lines across the whole glen. Multiply it by whatever `height_scale` is
+   multiplied by, or the new relief arrives carrying several hundred lines and reads as a wash.
+   It is a uniform on `terrain/materials/neon_terrain.tres`, so this is a number, not a rework.
+
+5. **Retune what assumed a small world.** `fog_density` 0.0022 gives ~450 units of visibility
    and would hide the new horizon; `directional_shadow_max_distance` is 320. Camera `far` is
    already 3000 and needs nothing. Beyond the raster's edge `SDFHeightmap` extends the edge
    value, so the outermost ring runs to flat ground at the horizon rather than to void — which

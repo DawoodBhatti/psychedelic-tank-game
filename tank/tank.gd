@@ -68,7 +68,7 @@ const BRAKE_DRAG := 0.9
 @export var muzzle_velocity: float = 95.0
 
 ## Recoil impulse pushed back into the hull on firing, in m/s.
-@export var recoil: float = 4.0
+@export var recoil: float = 2.0
 
 # ============================================================
 # Aim
@@ -249,9 +249,26 @@ func _aim(_delta: float) -> void:
 	# turns underneath it.
 	turret.rotation_degrees.y = turret_yaw - rotation_degrees.y
 	barrel.rotation_degrees.x = barrel_pitch
-	# The camera shares the gun's elevation, negated: pushing the mouse forward
-	# lowers the gun and raises the camera behind it.
-	camera_arm.rotation_degrees.x = -barrel_pitch * 0.6 - 10.0
+	# The camera shares the gun's elevation, and shares its SIGN. The arm holds
+	# the camera along its local +Z while the camera looks along local -Z, so
+	# the camera's forward Y is sin(arm pitch): a POSITIVE arm pitch is a camera
+	# that looks up.
+	#
+	# This used to be negated, which is what read as inverted vertical aim. The
+	# gun was always right - _apply_aim() subtracts dy, and mouse-up is a
+	# negative relative.y, so mouse-up raises barrel_pitch and a positive X
+	# rotation on the barrel points the gun up. It was the camera that pitched
+	# the other way: raising the gun drove the arm further negative, so the
+	# camera looked further DOWN and the horizon climbed the screen while the
+	# gun climbed with it. Do NOT "fix" this by flipping the sign in
+	# _apply_aim(): that depresses the gun on mouse-up, which is the opposite of
+	# what was asked, and every automated test still passes.
+	#
+	# The 0.6 keeps the camera's swing gentler than the gun's, and the -5.0 sits
+	# the resting view (barrel_pitch 8) a hair below level. The arm masks layer
+	# 1, so at full elevation it pulls in against the terrain it swings down
+	# into rather than clipping through it.
+	camera_arm.rotation_degrees.x = barrel_pitch * 0.6 - 5.0
 
 
 # ------------------------------------------------------------
