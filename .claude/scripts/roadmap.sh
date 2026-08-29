@@ -25,10 +25,14 @@ mode="${1:-report}"
 # there is one. Sections are `## S<n> - <title>`; fields are `- <key>: <value>`.
 parse() {
   awk '
-    /^## S[0-9]+ / {
+    # A trailing letter is allowed - S1b - so a session can be inserted between
+    # two others without renumbering everything below it. Without the [a-z]*
+    # the heading simply does not match and the session is silently skipped,
+    # which is the worst possible failure for a file that IS the state.
+    /^## S[0-9]+[a-z]* / {
       id = $2
       title = $0
-      sub(/^## S[0-9]+ [^ ]* /, "", title)
+      sub(/^## S[0-9]+[a-z]* [^ ]* /, "", title)
       status = "?"; note = ""
       order[++n] = id
       titles[id] = title

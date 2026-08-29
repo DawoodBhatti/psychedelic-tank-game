@@ -148,9 +148,79 @@ as well as luma, never one channel.
 
 ---
 
-## S2 — Strip the Wild Metal Country combat scaffolding
+## S1b — Camera height, and the contour flicker on the valley floor
 - status: todo
 - depends: S1
+- gate: the camera's resting height above the tank is measured and is higher than 2.75 units;
+  the flicker's cause is **identified by measurement before it is fixed**, and named in the
+  report; after the fix, contour contribution on a near-horizontal region drops to near zero
+  while a sloped region keeps its banding.
+
+Two reports from playing S1. Both land in files S2 does not touch, so they run first.
+
+**1. The camera sits too low — and S1 is why.** Before S1 the arm pitch at rest was
+`-8 * 0.6 - 10 = -14.8°`; it is now `8 * 0.6 - 5 = -0.2°`. The pivot is 2.7 above the tank
+origin (`Turret` y 1.3 + `CameraArm` y 1.4) on a 13-unit arm, so the resting camera fell from
+about **6.0 to 2.75** units above the tank. The old formula's `-10` bias was doing double duty
+as a height offset and the fix removed it without replacing it.
+
+**Do not fix this by re-biasing the pitch.** Tangling height into the pitch term is what made
+the original line hard to read, and it is why the inversion hid there for so long. Separate
+them: **height is the pivot's y** (or an explicit offset), **pitch is what follows the gun**.
+Name both constants — `CAMERA_PITCH_FOLLOW` (0.6) and `CAMERA_PITCH_BIAS` (−5.0) — so the next
+person changing one does not silently change the other.
+
+Measure `camera.global_position.y - tank.global_position.y` at `barrel_pitch` 8 (rest), −12 and
++42, and report all three. "A little higher" is the ask, so land it and let the user judge; the
+gate is that it moved up and is measured, not a specific number.
+
+**This session also closes S1's open item.** S1 left unverified that at `barrel_pitch` 42 the
+uncollided `Camera3D` sits 1.79 m *below* the hull origin. Raising the pivot should fix it —
+re-measure it and say whether it did.
+
+**2. Contour lines flicker at the lowest point on the map.** Reported as "transparent
+flickering". Two candidate causes, both consistent with it happening at the valley floor.
+**Measure which one before fixing** — they have different fixes and the wrong one passes every
+test.
+
+- **(a) Flat ground collapses `fwidth` to zero.** The valley floor is near-horizontal, so world
+  Y barely changes across it and `f = y / interval` barely changes per pixel. `fwidth(f) → 0`
+  does two things: `smoothstep(width + fw, width - fw, d)` loses all antialiasing and becomes a
+  hard step, and the existing fade term `(1.0 - smoothstep(0.35, 0.5, fw))` is built for the
+  *opposite* end — it fades lines that bunch too tight on steep faces and does nothing here. A
+  flat area whose height sits near a contour multiple then flips wholesale between lit and unlit
+  as sub-voxel height variation crosses the threshold. That is what flickering over an *area*
+  looks like.
+- **(b) Emission-only lines on near-black albedo, through bloom.** Contours went into `EMISSION`
+  and not `ALBEDO`. The valley floor is the darkest part of the frame (`base_color` is
+  0.02/0.03/0.06 and it is in shadow) and `glow_hdr_threshold` is 0.85, so a line sitting at the
+  bloom threshold shimmers as the camera moves.
+
+**The check that separates them:** (a) correlates with the surface **normal**, (b) with screen
+**brightness**. Shoot the valley floor from two distances — (a) changes with the grazing angle,
+(b) does not.
+
+If it is (a), which is the likelier, the fix is what real contour maps do: **there is no contour
+line on flat ground.** Fade the contour by how fast world Y actually changes across the surface
+rather than antialiasing a band with no gradient to antialias against. `1.0 - abs(n.y)` is the
+cheap version and `v_world_normal` is already there.
+
+**Do not fix it by raising `contour_width` or lowering `contour_strength`.** Both make the
+artifact less visible without removing it, and both cost the contours everywhere else.
+
+**On the gate, and why it does not measure the flicker.** Flicker is temporal and
+`--harness-shot` renders one frame, so there is nothing to measure it with — do not build
+frame-differencing scaffolding to try. Measure the **mechanism** instead: pick one
+near-horizontal region and one sloped region on the same shot, and show the contour contribution
+collapsing on the flat one while surviving on the slope. The user confirms the symptom by eye.
+Use S1's control (`.claude/images/s1-contours-before.png`, pose `0,120,120:0,0,0`) plus a fresh
+low-angle shot of the valley floor, which S1 never took.
+
+---
+
+## S2 — Strip the Wild Metal Country combat scaffolding
+- status: todo
+- depends: S1b
 - gate: tests 1–6 green; no dangling `ext_resource` or orphan `.uid`; every harness value on
   `main.gd` unmoved except the spawn counters, which go to zero against an empty manifest.
 
