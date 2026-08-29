@@ -14,6 +14,8 @@ rule below looks arbitrary, it was paid for by a failure there. See provenance i
 - **Nothing outside this repository is ever written**, except the session scratchpad under
   `<temp>/claude/`. Enforced by a hook, not by trust.
 - Never push without explicit approval from the user. **Never push to `main`.**
+- **Committing is `/begin`'s job and nobody else's.** It commits on a green review so the next
+  session starts clean; every other command leaves the decision to the user.
 - Make small, incremental changes. Stop for feedback rather than making large changes in
   one pass.
 
@@ -29,7 +31,11 @@ has nothing to integrate until the files are on disk. Check that they are before
 Doer at them.
 
 ## The loop
-Run the pair with `/build <task>`; `.claude/commands/build.md` is the orchestrator's spec.
+**`docs/roadmap.md` is the backlog and the state.** `/begin` runs the next session from it,
+commits on approval, writes the result back and stops. Read it with
+`.claude/scripts/roadmap.sh` — no launch. Use `/build <task>` for anything off the roadmap.
+
+`.claude/commands/build.md` is the orchestrator's spec, and `/begin` follows it.
 Send-backs go into the SAME Doer via SendMessage, so it keeps its context rather than
 restarting cold. **An agent killed mid-run — usage limit, API error, stall watchdog — is
 resumed the same way, never respawned cold.** Recover what it already bought from **disk** —
