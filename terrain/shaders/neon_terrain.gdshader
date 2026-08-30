@@ -88,6 +88,31 @@ uniform vec3 contour_color : source_color = vec3(1.0, 0.62, 0.16);
 const float CONTOUR_INDEX_BOOST = 1.6;
 const float CONTOUR_INDEX_WIDTH = 0.4;
 
+// THERE IS NO CONTOUR LINE ON FLAT GROUND, which is both what a real contour
+// map does and the fix for an artifact this shader had on the valley floor.
+//
+// The measurement. Chunk normals are FLAT per triangle (chunk.gd stores one
+// geometric face normal per vertex), and on the valley floor 16 of 20 sampled
+// facets came back with n.y of exactly -1.0: perfectly horizontal. World Y is
+// then CONSTANT across the whole facet, so fwidth() in contour_band() is
+// exactly zero, its smoothstep collapses to a hard unantialiased step, and the
+// facet lights up or goes dark as a WHOLE. That is an area flipping, not a
+// line, and it is what read as flicker while driving. The existing fw fade in
+// contour_band() is built for the opposite end - lines bunching on steep faces
+// - and does nothing here.
+//
+// So fade by how fast world Y actually changes across the surface. 1 - |n.y|
+// is that, cheaply. The band sits between two MEASURED populations of
+// 1 - |n.y|: the valley floor's 0.0000-0.0036 (0-4.9 degrees) and the
+// hillsides' 0.0140-0.0539 (9.6-19 degrees). In angle, lines vanish below
+// ~4.4 degrees and are at full weight above ~8.9.
+//
+// Consts, not uniforms, for the same reason the two above are: this is the
+// shape of a contour line, tied to the facet normals marching cubes produces,
+// not a dial a level retunes. The uniforms are the per-level ones.
+const float CONTOUR_RELIEF_MIN = 0.003;
+const float CONTOUR_RELIEF_FULL = 0.012;
+
 // --- The trippy half -------------------------------------------------------
 // Driven from the game by a single uniform so the whole effect is one number
 // to turn off, rather than a shader variant. At 0 this is a static neon grid;
@@ -175,6 +200,10 @@ void fragment() {
 	float index = contour_band(v_world_pos.y, index_interval,
 		contour_width * CONTOUR_INDEX_WIDTH);
 	float contours = minor + index * CONTOUR_INDEX_BOOST;
+	// Both families fade together: an index line on flat ground is the same
+	// artifact, only heavier. See CONTOUR_RELIEF_MIN.
+	contours *= smoothstep(CONTOUR_RELIEF_MIN, CONTOUR_RELIEF_FULL,
+		1.0 - abs(n.y));
 
 	// Rim: NORMAL and VIEW are both view-space in fragment, so this needs no
 	// extra varying.

@@ -149,12 +149,43 @@ as well as luma, never one channel.
 ---
 
 ## S1b — Camera height, and the contour flicker on the valley floor
-- status: todo
+- status: done
 - depends: S1
-- gate: the camera's resting height above the tank is measured and is higher than 2.75 units;
-  the flicker's cause is **identified by measurement before it is fixed**, and named in the
-  report; after the fix, contour contribution on a near-horizontal region drops to near zero
-  while a sloped region keeps its banding.
+- landed: 2026-08-30, Reviewer-verified. **Camera height moved to the pivot**, not the pitch —
+  `CameraArm` y 1.4 → **4.2** in `tank.tscn` (pivot 5.5 = Turret 1.3 + arm 4.2), with
+  `CAMERA_PITCH_FOLLOW` 0.6 and `CAMERA_PITCH_BIAS` −5.0 named as separate constants and the
+  coupling line reading `barrel_pitch * FOLLOW + BIAS`. Resting height above the tank
+  **2.745 → 5.545** (direct `Camera3D` read; Reviewer reproduced 5.5453782 independently),
+  **8.247** at `barrel_pitch` −12 and **+1.011** at +42 — the last two derived from the arm
+  transform on a formula that agrees with the direct read to eight figures at rest. Both
+  forbidden dials confirmed unmoved: bias still −5.0, follow still 0.6, so the height was not
+  bought by re-biasing pitch. **S1's open item is closed**: at full elevation the uncollided
+  camera was 1.79 m *below* the hull origin and now sits **1.011 above** it.
+  **The flicker was cause (a)** — flat ground collapsing `fwidth` to zero — identified by
+  measurement before the fix. Chunk normals are flat per triangle, and the valley floor's
+  `1 - |n.y|` measures **0.0000** (three facets literally constant in world Y, so `fwidth` is
+  exactly zero and the facet flips as a whole) up to 0.0036, against hillsides **0.0140–0.2295**.
+  (b) was ruled out on its own premise: a minor line emits luminance ≈1.20 against a 0.85 glow
+  threshold *everywhere* in the frame, so the floor's dark albedo cannot be what puts it at the
+  threshold. Fix is `contours *= smoothstep(0.003, 0.012, 1.0 - abs(n.y))`, consts not uniforms,
+  thresholds set between the two measured populations; `contour_width` 0.05 and
+  `contour_strength` 1.8 both untouched. Flat-vs-sloped at one pose, both channels: flat slab
+  **Δluma −22.8 / −27.9 and Δgrey −0.599 / −0.629**, sloped bands **Δluma 0.0 and Δgrey 0.0**,
+  and the slopes still carry S1's contours (+4.8 luma / +0.074 grey against the pre-contour
+  frame, versus S1's own +4.9 / +0.074). Tests 1–6 pass; fps min **118.0** avg 119.8, load
+  **4.371 s**, `check_resources PASS {"checked":12,"failed":[]}`, zero errors and zero warnings.
+- unverified: **framing, and the flicker symptom itself.** The flicker is temporal and one frame
+  cannot show it — the mechanism was measured, not the symptom, so the user confirms by eye.
+  Framing is unverifiable with the supported tooling: `--harness-shot` replaces the camera with
+  an explicit pose, so the game camera cannot be photographed. One number for the eye: from the
+  measured pose the hull origin sits **22.9° below the view axis** (turret centre ~16°) against a
+  72° vertical fov, so the tank is in frame roughly 64% of the way down. Raising the pivot
+  translates the view up, so the tank now sits lower in frame than before. Also unverified: the
+  arm's collision behaviour — every reading was uncollided at the full 13.0 spring length.
+- also noted: ground facet normals read `n.y` of **−1.0**, i.e. downward, on ground whose outward
+  direction is up. Pre-existing, from the marching-cubes winding in `chunk.gd:271`, and untouched
+  by this session; `abs()` makes the relief fade sign-agnostic. It does mean lit shading uses a
+  downward normal — worth a look, out of scope here.
 
 Two reports from playing S1. Both land in files S2 does not touch, so they run first.
 
@@ -213,8 +244,16 @@ artifact less visible without removing it, and both cost the contours everywhere
 frame-differencing scaffolding to try. Measure the **mechanism** instead: pick one
 near-horizontal region and one sloped region on the same shot, and show the contour contribution
 collapsing on the flat one while surviving on the slope. The user confirms the symptom by eye.
-Use S1's control (`.claude/images/s1-contours-before.png`, pose `0,120,120:0,0,0`) plus a fresh
+Use S1's control (`.claude/images/s1-review-after.png`, pose `0,120,120:0,0,0`) plus a fresh
 low-angle shot of the valley floor, which S1 never took.
+
+**Corrected 2026-08-30, after the fact.** This line originally named `s1-contours-before.png`,
+which is S1's **pre-contour** frame: it differs from the post-S1 build by *two* changes, not one
+(the contours, and the grid dial-back `emission_strength` 2.4 → 1.6 and `line_width` 0.045 →
+0.035 in the same commit), so a pure contour fade measures against it as *adding* +14.9 luma,
+which a fade cannot do. `s1-review-after.png` is the true post-S1 state — verified by measuring
+it against `s1-contours-after.png` and getting delta 0 on every field, not by mtime. See
+`.claude/learnings/2026-08-30-control-shot-is-only-a-control-for-its-commit.md`.
 
 ---
 
@@ -313,6 +352,14 @@ Cost is fixed regardless of world size. Concretely: **6 levels, 64×64 quads eac
    minor and 2–3 index lines across the whole glen. Multiply it by whatever `height_scale` is
    multiplied by, or the new relief arrives carrying several hundred lines and reads as a wash.
    It is a uniform on `terrain/materials/neon_terrain.tres`, so this is a number, not a rework.
+
+   **And re-derive S1b's relief fade in the same pass.** `CONTOUR_RELIEF_MIN` 0.003 /
+   `CONTOUR_RELIEF_FULL` 0.012 in the shader are calibrated against **marching-cubes** facet
+   normals, which are flat per triangle — that is why the valley floor measured `1 - |n.y|` of
+   exactly 0.0000 and why the artifact existed at all. A clipmap displacing a grid in the vertex
+   shader produces *continuous* normals, so both the artifact and the two populations those
+   consts sit between change shape. Re-measure `1 - |n.y|` on flat and sloped ground under the
+   new renderer before trusting either number.
 
 5. **Retune what assumed a small world.** `fog_density` 0.0022 gives ~450 units of visibility
    and would hide the new horizon; `directional_shadow_max_distance` is 320. Camera `far` is

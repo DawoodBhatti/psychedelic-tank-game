@@ -78,6 +78,30 @@ const LOOK_SPEED := 130.0            # controller degrees per second
 const PITCH_MIN := -12.0             # the gun can only depress a little
 const PITCH_MAX := 42.0
 
+# ------------------------------------------------------------
+# Camera coupling
+# ------------------------------------------------------------
+# TWO CONSTANTS, TWO JOBS, AND THEY ARE NOT INTERCHANGEABLE. The camera's
+# HEIGHT is the arm's pivot - Turret y 1.3 + CameraArm y 4.2 = 5.5 above the
+# hull origin, in tank.tscn, which is the only place it is set. The camera's
+# PITCH is what follows the gun, and that is these two numbers and nothing
+# else.
+#
+# They were tangled once. The pre-S1 line was `-barrel_pitch * 0.6 - 10`, where
+# the -10 was silently buying height: the arm holds the camera 13 units out
+# along its local +Z, so an arm pitched down lifts the camera by
+# -13 * sin(pitch) and a large negative bias reads as "higher". Un-inverting the
+# sign therefore dropped the resting camera from ~6.0 to 2.75 without anyone
+# touching a height. Height goes in the pivot; pitch goes here.
+
+## How much of the gun's elevation the camera follows. Under 1.0 so the view
+## swings gentler than the gun does.
+const CAMERA_PITCH_FOLLOW := 0.6
+
+## Degrees the resting view sits below the gun's line. Trim for FRAMING only -
+## it is not the height dial, and using it as one is the bug described above.
+const CAMERA_PITCH_BIAS := -5.0
+
 # ============================================================
 # State
 # ============================================================
@@ -264,11 +288,11 @@ func _aim(_delta: float) -> void:
 	# _apply_aim(): that depresses the gun on mouse-up, which is the opposite of
 	# what was asked, and every automated test still passes.
 	#
-	# The 0.6 keeps the camera's swing gentler than the gun's, and the -5.0 sits
-	# the resting view (barrel_pitch 8) a hair below level. The arm masks layer
-	# 1, so at full elevation it pulls in against the terrain it swings down
-	# into rather than clipping through it.
-	camera_arm.rotation_degrees.x = barrel_pitch * 0.6 - 5.0
+	# PITCH ONLY. Height is the pivot's y in tank.tscn - see the note on
+	# CAMERA_PITCH_FOLLOW / CAMERA_PITCH_BIAS. The arm masks layer 1, so at full
+	# elevation it pulls in against the terrain it swings down into rather than
+	# clipping through it.
+	camera_arm.rotation_degrees.x = barrel_pitch * CAMERA_PITCH_FOLLOW + CAMERA_PITCH_BIAS
 
 
 # ------------------------------------------------------------
