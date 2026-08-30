@@ -545,9 +545,16 @@ This is the first change that makes a shell *do* something, so it is bigger than
 look for a `Damageable` on the collider (`hit["collider"]`) and call `apply_damage()`. Widen
 `hit_mask` to `TERRAIN | STRUCTURES`.
 
-Rename `CollisionLayers.ENEMIES` to `STRUCTURES` in the same pass — nothing fights back any
-more, and a bit named for a thing that does not exist is how the numbering rots. The bit value
-is unchanged (`1 << 3`); it is the name that moves. `tank.gd` masks it, so both move together.
+Add `CollisionLayers.STRUCTURES := 1 << 5` for towers. **Do not rename `ENEMIES`.**
+
+*Revised 2026-08-30.* This line used to say rename `ENEMIES` to `STRUCTURES`, on the grounds
+that nothing fights back any more. **S4c makes that false** — red tanks arrive and they are
+exactly what `ENEMIES` was named for. So `ENEMIES` (`1 << 3`) stays where it is and keeps its
+name, and towers get their own bit. Two bits rather than one is not bookkeeping: S4c's aggro
+query has to find the player without finding a tower, and a shell has to damage both, so the
+one place they are the same is the shell's `hit_mask` and everywhere else they differ.
+`1 << 5` is free — S2 deleted `PICKUPS` and `TRIGGERS` from that range and `PLAYER_SHELLS`
+(`1 << 2`) and `ENEMY_SHELLS` (`1 << 4`) are reserved and must stay empty.
 
 **2. `entities/tower.gd` + `entities/tower.tscn`.** A `StaticBody3D` with a `CollisionShape3D`,
 a `SkinSlot` holding placeholder geometry, and a `Damageable` carrying
@@ -598,9 +605,201 @@ hits passes a test that only checks it dies.
 
 ---
 
-## S5 — Hand-authoring affordance
+## S4b — Shells that hurt, and a tank that can die
 - status: todo
 - depends: S4
+- gate: on the live nodes, a direct hit, a hit at the blast edge and a hit just outside it are
+  three distinguishable numbers off `Damageable.health`, the direct hit at least 4× the edge
+  hit and the outside hit **exactly zero**; the player survives two direct hits and dies on the
+  third (`alive` reads true, true, false); a kill heals the player by the authored amount and
+  never above `max_health`; the HUD bar's own width var tracks `health_fraction()` at three
+  different healths.
+
+**What is wanted:** shells that do damage where they land and less damage nearby, a player that
+can be killed, and a bar for both. **No AI here** — S4c brings the things that shoot back. This
+is the substrate, and it is deliberately proved against S4's towers, which do not move.
+
+**Why this before the enemies, and not merged with them.** Every clause in the gate is
+measurable on a static target through `--harness-eval`. Wiring the same machinery to something
+that patrols means debugging damage and AI at once, and from outside they fail identically: the
+thing did not die. Split here and each half has a gate that can actually fail for one reason.
+
+**1. Splash damage.** `tank/shell.gd` already carries `@export var blast_radius: float = 8.0`
+and already emits `GameEvents.shell_exploded(centre, blast_radius)`. The radius exists, the bus
+already carries it, and the terrain already listens — so this is one more listener, not a new
+concept. Damage falls off from full at the centre to a floor at `blast_radius` and **zero
+beyond it**, which is the clause that says the falloff is a falloff and not a constant.
+
+Direct damage is S4's `Shell.damage`. Splash is a separate authored number, because "a near
+miss does 40 % of a hit" is a feel dial and folding it into the falloff curve hides it.
+
+**Do not apply both to the same target.** A shell that hits a tower dead-on and then also
+catches it in its own blast does damage twice, reads as "direct hits do double", and every test
+in the sequence passes. Whatever the shape, name the exclusion explicitly in the code.
+
+**2. The player can be damaged.** `tank/tank.gd` has `alive`, `spawn_position`, `death_height`
+and `respawn()` — a tank that can already *die* by falling, with no health at all. Give it a
+`Damageable` with `entities/profiles/player_tank.tres`, and route death into the reset path
+that `death_height` already uses rather than inventing a second one.
+
+**Three hits means `max_health = 3 × Shell.damage` derived in one place**, the way S4 derives
+the tower's five. Author `armour = 0.0` and `resistance = (1, 1, 1)` on the player profile so
+the arithmetic is exact and the gate is a clean true/true/false — otherwise `min_damage_fraction`
+and armour make the third hit a coin flip.
+
+**The dial, named because it is a dial.** "Sustain 3 direct hits" is read here as *dies on the
+third* — a 3:1 toughness ratio against an enemy that dies to one. If it should mean *survives
+three and dies on the fourth*, that is `max_health = 4 × damage` and nothing else changes.
+
+**3. Health bars.** Two of them, and they are not the same widget.
+- **Player:** screen-space in `UI/ui.gd`, beside the existing reload bar. That file already
+  owns `reload_bar` / `reload_frame` and a `_frame_width` — follow that pattern, do not
+  introduce a second one.
+- **Enemy/tower:** world-space, above the target, and this one is S4c's real consumer. Build it
+  here as a reusable node driven by `Damageable.health_fraction()`, which is documented in
+  `entities/damageable.gd:136` as exactly "what a health bar reads".
+
+**Do not prove the bar by reading the bar's pixels or its material back.** That is re-reading
+what the change just wrote (`CLAUDE.md § Traps`). Read `Damageable.health` and the bar node's
+own width/scale var, which are derived differently, and confirm the visual separately with a
+region check.
+
+**4. Healing.** `Damageable` already anticipates this: `damage_absorbed` is documented as
+"independent of `health` for anything that heals or repairs later". Add `heal(amount)` there,
+clamped at `max_health`, and have the level — not the tank, and not the enemy — decide that a
+kill heals the player. A tank that knows killing heals it is the coupling `main.gd`'s header
+exists to prevent; the level is the thing that knows both parties.
+
+Exercise it here against a tower kill. S4c changes nothing about this path.
+
+**Watch for:** `shell.gd:29-40` carries a long comment explaining that `hit_mask` is terrain-only
+and that adding enemies is **"session E's change"**. Session E was in `docs/foundation-plan.md`
+and **S2 deleted it** — the comment now points at a session that does not exist. S4 widens that
+mask and this session and S4c widen it again; whoever touches it first should fix the comment
+rather than leave three sessions' worth of stale provenance in a load-bearing file.
+
+---
+
+## S4c — The red tanks: patrol, aggro, leash
+- status: todo
+- depends: S4b
+- gate: an unaggroed enemy's distance from its patrol centre stays within its radius across 300
+  physics frames; with the player placed in the open inside its sight range the state flips to
+  engaging, and with the player at the **same range but behind terrain** it does not — that
+  pair is what proves the check is a raycast and not a distance test; at 3× the radius the
+  state returns to patrolling and the enemy's position comes back inside the circle; one
+  `apply_damage(Shell.damage)` flips `is_alive` false and decrements `enemies_alive`;
+  `collision_layer` and `collision_mask` re-measured off every live enemy body.
+
+**What is wanted:** a few enemy tanks — our tank, entirely red — each roaming a circular patch.
+Come within their line of sight and they aggro and drive at you. Retreat to 3× the patrol radius
+and they give up and go home. One direct hit kills them; three kill you; killing one heals you.
+
+**S2 deleted the last enemy on purpose and this does not resurrect it.** `entities/enemy_body.gd`
+and `entities/profiles/guardian_hull.tres` were Wild Metal Country scaffolding for a game that is
+not being built, and their placement rules were derived against a 384-unit world. They are in
+git history (`a278a88^`) and are worth **reading for the layer/mask wiring only** — not for the
+behaviour, and not as a scene to restore.
+
+**This reverses a standing decision, and the reversal is recorded.** `CLAUDE.md § Out of scope`
+and this file's Deferred list both named enemy AI as not-being-built. The user asked for it on
+2026-08-30; both have been updated. Scoring and win/lose conditions are **still** deferred — an
+enemy that kills you and heals you is a mechanic, not an objective, and nothing here should grow
+a score.
+
+**1. The enemy entity.** `entities/enemy_tank.gd` + `entities/enemy_tank.tscn`, on
+`CollisionLayers.ENEMIES` (`1 << 3`, which S4 was told to leave alone for exactly this).
+
+Reuse the player's chassis rather than authoring a second one — `tank/tank.tscn` is a
+`CharacterBody3D` with a turret and a barrel, and the drive constants (`FORWARD_DRIVE` 26.0,
+`TURN_RATE` 95.0, `DRAG_COEFF` 0.055) are the feel this project already tuned. **But do not make
+the enemy a `Tank`.** `tank/tank.gd` is 372 lines of *input handling*, camera arm, reload timer
+and mouse look, none of which an AI wants, and inheriting it means every player-feel change
+edits enemy behaviour silently. Lift the drive into something both can use, or give the enemy
+its own body and share the constants — S3's `TerrainSurface` is the precedent for that shape.
+
+"Entirely red" is a `SkinSlot` material override, not a new mesh. The evidence it is live is
+`resource_path` off the node, plus a region check showing `hue_frac.red` where the enemy is —
+`CLAUDE.md` on why a colour value alone is not evidence a reference resolved.
+
+**2. Patrol.** A centre and a radius, authored per enemy. The enemy wanders inside the circle;
+the gate samples its distance from the centre over 300 frames and the maximum stays inside.
+
+**3. Aggro, and the half of it that matters.** Line of sight is a **raycast against
+`CollisionLayers.TERRAIN`**, from the enemy's eye to the player, plus a range and (optionally) a
+facing cone. `entities/TerrainAnalysis.gd:177-193` already does a sightline walk against
+`surface_height()` and is worth reading first — but it samples heights on the CPU for placement,
+which is a different job from a per-frame physics query, so **read it, do not extend it**.
+
+The gate deliberately tests the negative case at the *same range*, because a distance-only check
+passes every positive test. That pair is the session's real content.
+
+**4. Leash.** Beyond 3× the patrol radius the enemy disengages and returns. Hysteresis is not
+optional: aggro at range R and leash at 3R are far enough apart that it cannot chatter, and that
+gap is the reason the number is 3 and not 1.1.
+
+**5. One hit kills.** `entities/profiles/enemy_tank.tres` with `max_health = Shell.damage`,
+`armour = 0.0`. Derived from the shell's number in one place, like S4's tower and S4b's player.
+
+**6. Harness surface.** `enemies_alive` / `enemies_total` on `main.gd` as computed getters off
+the live nodes. **These names already existed** — S2 zeroed them against an empty manifest and
+they still read off `Spawner.live_damageable_count()`. Reuse rather than add, and note that S4
+is separately told to rename them to `towers_*`; whichever session lands second reconciles that,
+and the answer is probably both, counted separately.
+
+**The constraint that shapes the whole design, and it is narrower than it looks.**
+The harness *can* mutate the live tree — `node.set("prop", v)` and any method call parse and run
+setters, proven in `.claude/learnings/2026-08-28-harness-eval-cannot-assign.md` (only the `=`
+**syntax** fails, because `Expression` parses one expression). What it cannot do is **let time
+pass**: `DevHarness._cmd_eval()` awaits the load once and then runs every expression in a plain
+synchronous loop, so no frame ticks between them (`CLAUDE.md § The dev harness`).
+
+So the unbuildable test is "move the world, wait, read the state". **Do not solve that by making
+the AI remote-controllable.** `set_target_position()` and an externally-callable
+`evaluate_state()` are test hooks wearing production clothes, and they let the gate pass while
+the state machine that ships consults none of it.
+
+Two house patterns cover the whole gate between them, and both already exist here.
+
+- **Decisions are pure functions, called directly.** `can_see(from_position) -> bool` and
+  `should_leash(from_position) -> bool` take the position as an **argument** rather than
+  requiring the world to be moved first, so no waiting is needed and the negative case is two
+  calls with two positions. This is `CLAUDE.md`'s existing ruling for input bindings applied
+  verbatim — "call the branch bodies directly on the live node instead" — and it is why
+  `set_target_position()` is not needed at all.
+
+- **Anything that only exists across frames records its own statistic.** The enemy tracks
+  `max_patrol_excursion` in `_physics_process`; a `--quit-after 300` run then reports one
+  number. `autoloads/PerfSampler.gd` is the precedent (it samples across frames into a bounded
+  array and `--harness-fps` reads it), and so are `Terrain.last_carve_clearance` and
+  `Spawner.min_spawn_clearance()`. These are permanent invariants, not scaffolding: a system
+  that decides where mass goes over time owes a number about where it went.
+
+  **Corroborate it, because `CLAUDE.md § Traps` applies** — a statistic computed by the code
+  under review is not independent evidence for the property it names. Read the enemy's live
+  `global_position` against its patrol centre in the same batch; that is derived from the
+  transform rather than from the AI's bookkeeping.
+
+**The gap this leaves, stated rather than closed.** Testing `can_see()` proves the predicate,
+not that the state machine consults it. Close it the way S2 proved `destructible` was actually
+read — by watching a count move: an `aggro_transitions` counter incremented inside the
+transition, read after a `--quit-after` run with the player parked in view, is enough and costs
+one int.
+
+**Not worth buying: an interleaved wait in the harness.** A `--harness-step=N` between evals is
+the general fix and would serve tweens, timers and shell flight too — but `_parse_args()` returns
+a Dictionary, so argument order is lost and preserving it means reworking arg parsing in the one
+file every test in the sequence depends on. That is a pipeline session, not a line item in this
+one. If a later session wants to observe a transition rather than a predicate, revisit it then.
+
+**Not in this session:** enemies that shoot back, pathfinding around obstacles, group behaviour,
+or any objective built on top of kills. `ENEMY_SHELLS` (`1 << 4`) stays reserved and empty.
+
+---
+
+## S5 — Hand-authoring affordance
+- status: todo
+- depends: S4c
 - gate: a tower placed by hand in `main.tscn` at an authored x/z appears there, snapped to the
   ground, with `min_ground_clearance` still positive across authored and scattered entities
   together.
@@ -676,9 +875,14 @@ actually doing once rather than asserting.
 
 ## Deferred
 
-Named so they are not rediscovered as ideas: enemy AI of any kind, scoring, win and lose
-conditions, multiple levels, audio, geomorphing across clipmap ring boundaries, terrain that
-remembers damage across a reset, GPU marching cubes.
+Named so they are not rediscovered as ideas: scoring, win and lose conditions, multiple levels,
+audio, geomorphing across clipmap ring boundaries, terrain that remembers damage across a reset,
+GPU marching cubes.
+
+**"Enemy AI of any kind" was on this list and came off it on 2026-08-30**, at the user's
+request — see S4c. `CLAUDE.md § Out of scope` was updated in the same pass. **Scoring and
+win/lose conditions did not come off**: enemies that patrol, aggro, kill you and heal you when
+killed are mechanics, and this is still a mechanics prototype with nothing to win.
 
 **Terrain detail below ~30 m**, which is the one the glen will visibly want. Two routes, neither
 free. A finer DEM source — Copernicus is 30 m too and needs attribution, so this means UK LIDAR

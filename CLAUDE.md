@@ -354,4 +354,5 @@ including ones no code anticipated — so a clean error grep is meaningful.
   The modeller flags a link and the user fetches it by hand; do not add a fetcher.
 - GPU/compute marching cubes. The CPU implementation is the one that works; a Godot 3-era
   compute sketch exists in `../procedural-landscapes` and does not run. See pipeline-notes.
-- Enemy tanks, scoring, win conditions. This is a mechanics prototype.
+- Scoring, win conditions. This is a mechanics prototype. (**Enemy tanks came off this list on
+  2026-08-30** at the user's request — they are roadmap S4c. Scoring and win conditions did not.)
