@@ -81,12 +81,12 @@ var elevation_percentile := PackedFloat32Array()
 ## edge, 1 dead centre. This is the "near a map edge" in the plan's gate rule.
 var edge_fraction := PackedFloat32Array()
 
-var _terrain: Terrain
+var _terrain: TerrainSurface
 var _per_axis: int
 var _seed: int
 
 
-func _init(terrain: Terrain, per_axis: int = 20, analysis_seed: int = 0) -> void:
+func _init(terrain: TerrainSurface, per_axis: int = 20, analysis_seed: int = 0) -> void:
 	_terrain = terrain
 	_per_axis = maxi(per_axis, 2)
 	_seed = analysis_seed

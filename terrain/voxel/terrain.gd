@@ -1,8 +1,24 @@
-extends Node3D
+extends TerrainSurface
 class_name Terrain
 
-# The world: a 3D grid of marching-cubes chunks, all meshing the same shared
+# A world: a 3D grid of marching-cubes chunks, all meshing the same shared
 # TerrainField, plus the operation that cuts holes in it - carve().
+#
+# NOT THE ONE THE GAME CURRENTLY RUNS. S3 replaced it with
+# terrain/heightmap/heightmap_terrain.gd, a geometry clipmap, because marching
+# cubes meshes a VOLUME and its cost is therefore cubic in world width - at 2000
+# units the settings that built 384 in 4.4 s would sample ~250 M voxels. main.tscn
+# no longer instances this node and nothing in the game constructs one.
+#
+# IT IS KEPT, NOT DELETED, AND IT IS KEPT WORKING. Destruction is deferred, not
+# cancelled: Wild Metal Country's terrain deformed, and when it returns it
+# returns as a local voxel patch composited over the clipmap around a crater,
+# not as the way the whole world is represented. Test 2 walks every resource in
+# the project, so this cannot rot silently.
+#
+# Both renderers implement TerrainSurface, which is the contract the spawner,
+# the terrain analysis, the HUD and the level runner are written against. Read
+# that file before adding a member either of them is expected to have.
 #
 # CARVING IS BUILT, WIRED AND CURRENTLY OFF. `destructible` below defaults to
 # false, so nothing here subscribes to the shell bus and the ground is static.
@@ -32,12 +48,10 @@ class_name Terrain
 @export var chunks_y: int = 2
 @export var chunks_z: int = 4
 
-## The shared field. Left null, a default hills field is built in _ready.
-@export var field: TerrainField
-
-## Material handed to every chunk. Shared deliberately - one material for the
-## whole world means the neon look is retuned in one place.
-@export var surface_material: Material
+# `field` and `surface_material` are declared on TerrainSurface: they are what
+# BOTH renderers need from a level, and hoisting them is what lets a level swap
+# terrains without re-authoring either. Left null here, _ready() still builds a
+# default hills field.
 
 ## Whether a shell cuts a hole in the world. OFF by default, and that is the
 ## whole of the switch: nothing below has been removed, so turning this on
@@ -204,15 +218,9 @@ func reset() -> void:
 	_recount_triangles()
 
 
-## Height of the original ground at a world x/z, ignoring craters. What to
-## spawn things on.
-##
-## Goes through SDF's height-field interface, so the ground may be one field or
-## a whole SDFComposite stack. A ground field that is not a height field cannot
-## answer this and pushes an error rather than returning a plausible 0.0 - see
-## SDF.surface_height().
-func surface_height(x: float, z: float) -> float:
-	return field.ground.surface_height(x, z)
+# surface_height() is inherited verbatim from TerrainSurface: it goes through
+# SDF's height-field interface, so the ground may be one field or a whole
+# SDFComposite stack, and both renderers answer from the same call.
 
 
 ## Relief of the ground across the whole world footprint, as
@@ -280,6 +288,27 @@ func world_extent_z() -> float:
 ## Lowest y the grid covers. Anything below this has left the world.
 func world_floor() -> float:
 	return _world_min.y
+
+
+# The TerrainSurface accessors. Thin on purpose: this node keeps its counts as
+# plain vars, written where they are computed, and the base cannot declare them
+# as vars without forcing the clipmap - which has no such counts to keep - to
+# mirror its own numbers into stale copies. See TerrainSurface's header.
+
+func triangle_count() -> int:
+	return triangles_total
+
+
+func chunk_count() -> int:
+	return chunks_total
+
+
+func crater_count() -> int:
+	return craters_carved
+
+
+func is_destructible() -> bool:
+	return destructible
 
 
 func _on_shell_exploded(position: Vector3, radius: float) -> void:

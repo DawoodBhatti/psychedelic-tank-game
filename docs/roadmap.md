@@ -327,12 +327,92 @@ have to resolve. Test 2 walks every resource in the project and is the check tha
 ---
 
 ## S3 — The big world
-- status: todo
+- status: done
 - depends: S2
-- gate: the world is at least 2000 units across and drivable end to end; load under 10 s;
-  test 4 fps minimum at or above 60; **the visible ground and the collidable ground agree** —
-  20 downward raycasts against `field.ground.surface_height()` at the same x/z, worst
-  disagreement under 0.5 units; ground visible at the horizon in a region check, not sky.
+- landed: 2026-08-30, Reviewer-verified. The voxel renderer is replaced by a geometry clipmap
+  and the glen is mapped 1:1. **World 2022 × 2010** (`world_extent_x()` **1011.0**,
+  `world_extent_z()` **1005.0**), from `world_size` 384 → **(2022, 2010)** and `height_scale`
+  0.08 → **0.42125** (= 0.08 × 2022/384). **Load 2.26 s headless / 2.19 s windowed**, down from
+  5.104 / 4.34 — the world grew 27× in area and got *faster*. Test 4 **fps min 119.0 avg 119.8
+  max 121.0** over 10 samples, against a gate floor of 60 and a baseline min of 118.0.
+  `chunks_total` 192 → **6**, `terrain_triangles` 95058 → **38912**.
+  **The gate's central clause was settled on both halves, separately.** The *collidable* half:
+  `max_collision_disagreement` against `field.ground.surface_height()` = **0.00479820846981**
+  over **49** rays on the Reviewer's own point set (Doer: 0.000149/25 rays, 0.00380/36), gate
+  20 rays under 0.5; the function returns `INF` on a miss, so a finite value also proves
+  collision exists at all 49 points. The *visible* half was **not** taken on
+  `max_render_disagreement` **0.0699**, which is a CPU mirror of the shader's arithmetic and not
+  evidence for the GLSL — the Doer said so itself. It was closed on **pixels, at two camera
+  heights**: the terrain silhouette's half-signal crossing measured **y ≈ 0.490** against
+  **0.4897** predicted from `field.ground.surface_height()` alone (edge-extended plateau
+  −40.115, camera −56, vFOV 75), and on a control camera 456 units higher, **0.631** measured
+  against **0.640** predicted. Two features, two poses, both landing where the CPU field says.
+  **Horizon region check** (`.claude/images/s3-horizon.png`, pose `0,-56,0:0,-56,2000`) against
+  a *constructed* control (`s3-sky-control.png`, camera y 400 — above `_height_max` 258.33, so
+  no region above frame-y 0.5 can contain terrain **by construction**): the control region
+  measured **Δ0.0 on both channels**, pixel-identical, while the horizon band moved
+  **+103.9 luma and −0.641 purple**. Ground at the horizon, not sky, against a measured zero.
+  **Requirement 3 held.** `max_world_gradient` 1.89054 → **1.89957** (+0.48 %, the z axis at
+  2010 against x at 2022). Corroborated on quantities derived differently:
+  `vertical_extent()` 49.06 → **258.3316** and `surface_height_range()` (−20.538, 47.306,
+  16.793) → **(−108.1468, 249.0957, 88.42439)**, every component **×5.2656 = 0.42125/0.08
+  exactly**, so gradients are invariant by construction rather than by luck.
+  **Requirement 4 re-measured, and the answer was to keep the constants.** Relief quantiles over
+  1600 points: p25 **0.00364**, p50 **0.02758**, p75 0.05321, max 0.44616 — corroborated off a
+  path sharing no code, `TerrainAnalysis.slope_degrees` over 400 candidates giving p25 4.912°
+  and p50 13.488°, whose `1 − cos` are 0.00367 and 0.02757 (three significant figures on both).
+  `CONTOUR_RELIEF_MIN` 0.003 still sits inside the flattest quarter and `CONTOUR_RELIEF_FULL`
+  0.012 still sits in the gap to the median — unchanged **because** `height_scale` moved with
+  `world_size`. Contour density 357.2/20.0 = 17.9 minor lines against 67.84/4.0 = 17.0 before.
+  **Shape.** New base class `terrain/terrain_surface.gd`; both renderers extend it and the four
+  `Terrain`-typed call sites (`spawner.gd`, `TerrainAnalysis.gd`, `ui.gd`) name it instead. The
+  four counters became **methods** (`triangle_count()`, `chunk_count()`, `crater_count()`,
+  `is_destructible()`) because GDScript cannot override an inherited var with a property.
+  `build()` samples the field once into an `R32F` texture of **world heights**; the shader reads
+  it with `texelFetch` + bilinear and the collider is built from the **same**
+  `PackedFloat32Array` — verified structural, not coincidental: live shader uniforms
+  `map_dim (1013,1007)`, `map_step (2,2)`, `map_origin (−1012,−1006)` match
+  `collision_grid_size()` **(1013, 1007)** exactly. Ring seams use four pre-built hole variants
+  per level: `ring_seam_mismatch()` = **0.0** at seven follow positions driving `_active_variant`
+  through all four variants, with `triangle_count()` 38912 throughout.
+  **Collision re-measured off the live bodies:** terrain `collision_layer` **1** / `mask` **0** /
+  `scale` **(2, 1, 2)** (uniform in x/z, 1.0 in y so heights are not stretched); tank **2**/**9**
+  unmoved; `get_child_count()` = **7** = one `StaticBody3D` + six levels, i.e. **exactly one
+  collider** — the stacked-body trap's shape, absent.
+  Marching cubes `git mv`'d to `terrain/voxel/` with its `.uid` pairs; `.godot/` verified clean
+  by grep (`global_script_class_cache.cfg` carries the new paths and no stale one survives),
+  which matters because S2 recorded that a stale cache passes tests 1 and 2 green.
+  `levels/valley.tres` changed by exactly one `ext_resource` path (`neon_terrain.tres` →
+  `heightmap_terrain.tres`), `load_steps` and every hand-numbered id untouched.
+  Retunes: `contour_interval` 4.0 → **20.0**, `fog_density` 0.0022 → **0.0004**,
+  `directional_shadow_max_distance` 320 → **1200**; camera `far` already 3000, untouched.
+  `custom_aabb` P(−64, −161.07, −64) S(128, 469.40, 128) is load-bearing — the mesh AABB is a
+  zero-thickness slab (S 128, **0.00001**, 128) because height only exists after the vertex
+  shader, so without the override Godot culls rings that are plainly on screen.
+  Tests 1–6 pass; `check_resources PASS {"checked":9 → 11,"failed":[]}` — the new shader and
+  material and nothing else; zero errors and zero warnings.
+- unverified: **driving it.** "Drivable end to end" rests on the 49 raycasts plus max pool slope
+  **49.094°** against the tank's `floor_max_angle` 0.9 rad = **51.57°** — nobody drove 2022
+  units, and Jolt's scaled heightfield was verified by static raycasts only, never under a
+  moving body. **LOD popping at ring boundaries** is temporal and needs hands; the roadmap said
+  measure before spending on geomorphing, and it could not be measured here.
+  **Composition and colour** of `s3-horizon.png` and `s3-doer-look.png` are for the eye — the
+  render checks answer "does it render", not "does it look good".
+  `surface_clearance()` **has no successor**: it measured the gap to a meshed box's roof and
+  floor, and a clipmap has no box, so the baseline's 24.694 is not comparable to anything.
+  The voxel `Terrain` build path is now **exercised by nothing** — it compiles and its resources
+  load, but no test instantiates it, so the edits to its `extends` are compile-verified only.
+- also noted: **the collider footprint is smaller than the drawn extent.** The
+  `HeightMapShape3D` spans x ∈ [−1012, +1012] and z ∈ [−1006, +1006]; the clipmap draws to
+  ±2048 from the tank. So there are roughly 1000 units of drawn-but-not-collidable ground on
+  every side, and driving past the footprint edge is a fall to `death_height` −181.073
+  (`world_floor()` −161.073). This is consistent with the edge-extended flat horizon this
+  session asked for on purpose — "the 'still in the world' illusion, for free" — but it is the
+  one place the gate's headline sentence does not hold, and it was in neither agent's plan.
+  Also: `terrain/materials/neon_terrain.tres` still carries `contour_interval = 4.0` while the
+  new material moved to 20.0. Harmless while nothing instances the voxel renderer, but the new
+  shader's header states the two fragment halves must be retuned together and this pass retuned
+  one — it matters whenever destruction returns.
 
 **What is actually wanted:** a huge glen to drive around. Not more data — the whole 2022 × 2010 m
 crop is already loaded; `SDFHeightmap.world_size` squashes it onto a 384-unit footprint at
@@ -493,6 +573,19 @@ differently, and confirm the visual separately with a region check on a screensh
 S2 deleted. Its `PlacementRule` bounds sit between measured quantiles from
 `TerrainAnalysis.metrics_summary()` on the **post-S3** field. Publish the new quantiles in the
 `PlacementRule.gd` header the way the existing ones are.
+
+**What S3 left you** (2026-08-30). Some of that measuring is already done, on the post-S3
+field, and is in S3's landed note above: `TerrainAnalysis.slope_degrees` over 400 candidates
+gives **p25 4.912°** and **p50 13.488°**, with a **max pool slope of 49.094°**; relief
+`1 − |n.y|` over 1600 points gives p25 0.00364, p50 0.02758, p75 0.05321, max 0.44616. Take
+these as the starting distribution rather than re-buying the launches, but re-derive anything
+the rule actually gates on — the old guardian rule's *elevation percentile* and *openness*
+bands were never re-measured at this scale, and `sightline_range` is still 60.0 against a world
+that is now 2022 units across, so "openness" no longer means what it meant at 384.
+Placement stays inside collidable ground for free: `TerrainAnalysis` bounds itself with
+`world_extent_x()` / `world_extent_z()`, which return **1011.0 / 1005.0** — the collider's
+footprint, not the clipmap's ±2048 draw distance. Do not widen it to the drawn extent; S3's
+"also noted" says why.
 
 **5. Harness surface.** `towers_alive` and `towers_total` on `main.gd`, as computed getters off
 the live nodes, never mirrored per frame. `main.gd` already has `enemies_alive` /

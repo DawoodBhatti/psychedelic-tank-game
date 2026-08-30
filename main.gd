@@ -19,7 +19,7 @@ class_name LevelRunner
 # a level, the .tres is which level it runs, so a second valley costs a new
 # resource file and no new code.
 
-@onready var terrain: Terrain = $Terrain
+@onready var terrain: TerrainSurface = $Terrain
 @onready var tank: Tank = $Tank
 @onready var ui: TankUI = $UI
 @onready var world_environment: WorldEnvironment = $WorldEnvironment
@@ -71,33 +71,34 @@ var _loading_complete: bool = false
 #
 # A getter cannot be stale. It also costs nothing when nobody is looking.
 
-## Chunks in the terrain grid.
+## Independently meshed pieces the world is drawn as - marching-cubes chunks on
+## the voxel terrain, clipmap ring levels on the heightmap one.
 var chunks_total: int:
 	get:
-		return terrain.chunks_total if terrain != null else 0
+		return terrain.chunk_count() if terrain != null else 0
 
-## Triangles across the whole terrain.
+## Triangles currently drawn across the whole terrain, read off the meshes
+## rather than off the code that built them.
 ##
-## Note it goes UP when a crater is carved, not down: a hole has walls, and
-## those walls are new surface. Re-measured on the current 8x3x8 grid, with
+## ON THE VOXEL TERRAIN it goes UP when a crater is carved, not down: a hole has
+## walls, and those walls are new surface. Measured on the 8x3x8 grid, with
 ## Terrain.destructible flipped on at runtime and a radius-8 crater dropped on
-## the surface at the origin: 95058 -> 95206. So this proves the mesh CHANGED,
-## and is not on its own evidence that material was removed - for that, compare a
-## chunk's get_mesh_aabb() or look at the pixels.
+## the surface at the origin: 95058 -> 95206. So it proves the mesh CHANGED, and
+## is not on its own evidence that material was removed.
 ##
-## IT IS ALSO WHAT SAYS CARVING IS OFF, which is what it is doing most of the
-## time now: Terrain.destructible defaults to false, so emitting shell_exploded
-## leaves this number where it was. craters_carved below staying 0 is the weaker
-## half of that check - it is written by the carve - while this is derived from
-## the meshes.
+## ON THE CLIPMAP it is constant after the build - the meshes are never rebuilt
+## and every hole-position variant of a ring carries the same triangle count, so
+## the number does not move as the world slides under the player. That is a
+## property worth checking rather than assuming.
 var terrain_triangles: int:
 	get:
-		return terrain.triangles_total if terrain != null else 0
+		return terrain.triangle_count() if terrain != null else 0
 
-## Craters carved since the last reset.
+## Craters carved since the last reset. Always 0 on a terrain that cannot be
+## carved, which is every terrain the game currently runs.
 var craters_carved: int:
 	get:
-		return terrain.craters_carved if terrain != null else 0
+		return terrain.crater_count() if terrain != null else 0
 
 ## Explosions the effects director has spawned. Confirms the bus is live
 ## without needing pixels.
@@ -244,6 +245,12 @@ func _apply_level() -> void:
 		terrain.field = level.field
 	terrain.surface_material = terrain_material
 
+	# The clipmap keeps its finest ring under the player, so it needs to know
+	# where the player is - and the terrain must not go looking for a tank. This
+	# is the same division of labour that puts _place_tank() in this file: two
+	# systems have to be introduced, and the level is what knows both.
+	terrain.follow_target = tank
+
 	if level.environment != null:
 		world_environment.environment = level.environment
 
@@ -283,7 +290,7 @@ func _scatter_entities() -> void:
 func _on_level_reset_requested(reason: String) -> void:
 	GameLogger.write_log("state", "level_reset", {
 		"reason": reason,
-		"craters_cleared": terrain.craters_carved,
+		"craters_cleared": terrain.crater_count(),
 	})
 
 	terrain.reset()

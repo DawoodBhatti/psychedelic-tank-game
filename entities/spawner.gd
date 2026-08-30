@@ -92,7 +92,7 @@ var group_reports: Array[Dictionary] = []
 ## measured quantiles every threshold in the manifest should be sitting between.
 var terrain_metrics: Dictionary = {}
 
-var _terrain: Terrain
+var _terrain: TerrainSurface
 
 # Placed entities and the separation each was placed under, index-aligned.
 # Nodes rather than positions, so the clearance getters read the LIVE transform:
@@ -146,7 +146,7 @@ func _clear_placed() -> void:
 
 ## Places the whole manifest. Synchronous, like terrain.build() and for the same
 ## reason: there is nothing useful to do with a half-populated level.
-func scatter(terrain: Terrain, manifest: Array[SpawnGroup], scatter_seed: int) -> void:
+func scatter(terrain: TerrainSurface, manifest: Array[SpawnGroup], scatter_seed: int) -> void:
 	_terrain = terrain
 	spawn_failures = 0
 	entities_placed = 0

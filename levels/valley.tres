@@ -2,7 +2,7 @@
 
 [ext_resource type="Script" path="res://levels/LevelDef.gd" id="1_def"]
 [ext_resource type="Resource" path="res://terrain/fields/world_field.tres" id="2_field"]
-[ext_resource type="ShaderMaterial" path="res://terrain/materials/neon_terrain.tres" id="3_material"]
+[ext_resource type="ShaderMaterial" path="res://terrain/materials/heightmap_terrain.tres" id="3_material"]
 [ext_resource type="Environment" path="res://environment/neon_environment.tres" id="4_env"]
 [ext_resource type="Script" path="res://entities/PlacementRule.gd" id="5_rule"]
 [ext_resource type="Script" path="res://entities/SpawnGroup.gd" id="6_group"]

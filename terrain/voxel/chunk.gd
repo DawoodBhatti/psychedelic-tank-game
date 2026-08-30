@@ -30,7 +30,7 @@ class_name TerrainChunk
 
 # Lazy-loaded tables. Static so a world of N chunks does not hold N copies of
 # the (large, immutable) lookup tables.
-static var MC := preload("res://terrain/marching_cubes_tables.gd").new()
+static var MC := preload("res://terrain/voxel/marching_cubes_tables.gd").new()
 
 ## Field to mesh. Shared with every other chunk in the world; see TerrainField.
 @export var sdf: SDF

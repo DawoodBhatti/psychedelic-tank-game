@@ -20,7 +20,7 @@ class_name TankUI
 ## Set by the level. Not an @onready node path: the UI must not care where the
 ## tank sits in the tree, and a wrong path here is a crash on a HUD.
 var tank: Tank
-var terrain: Terrain
+var terrain: TerrainSurface
 
 var _frame_width: float = 0.0
 var _help_timer: Timer
@@ -62,10 +62,11 @@ func _process(_delta: float) -> void:
 	crosshair.modulate = Color(1, 1, 1, 1) if fraction >= 1.0 else Color(1, 1, 1, 0.35)
 
 	# The crater count is only information while the ground can actually be cut.
-	# With Terrain.destructible off it is dead text pinned at 0, so the readout
-	# drops it and keeps the triangle count, which still moves with the world.
+	# The clipmap terrain cannot be cut at all and the voxel one has destruction
+	# switched off, so this is dead text pinned at 0 either way - the readout
+	# drops it and keeps the triangle count, which still describes the world.
 	if terrain != null:
-		if terrain.destructible:
-			craters_label.text = "%d craters   %d tris" % [terrain.craters_carved, terrain.triangles_total]
+		if terrain.is_destructible():
+			craters_label.text = "%d craters   %d tris" % [terrain.crater_count(), terrain.triangle_count()]
 		else:
-			craters_label.text = "%d tris" % terrain.triangles_total
+			craters_label.text = "%d tris" % terrain.triangle_count()

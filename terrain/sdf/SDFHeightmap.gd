@@ -42,20 +42,22 @@ class_name SDFHeightmap
 # ------------------------------------------------------------------
 # Pixel CENTRES sit on the footprint's edges: column 0 at the west edge, column
 # w-1 at the east edge. So the pixel pitch is world_size.x / (w - 1) - with the
-# authored 384 m over 119 px that is 3.2542 world units (measured on the live
-# field: world_size.x / 118 = 3.25424).
+# authored 2022 m over 119 px that is 17.136 world units (world_size.x / 118).
 #
-# THE DEM IS NOW COARSER THAN THE VOXEL GRID. Say it plainly, because it used to
-# be the other way round: over the original 192 m footprint the pitch was 1.6271,
-# just UNDER one voxel, and at 384 m it is 3.2542, comfortably ABOVE the
-# voxel_size of 2.0. Roughly one and a half voxels now sit between two pixel
-# centres with nothing but the bilinear filter carrying the surface across them,
-# so the filter is doing real work rather than a final smoothing pass, and the
-# ground reads slightly SMOOTHER than the raster it came from. That is the known,
-# accepted cost of widening the world without widening the crop; the fix, if it
-# ever matters, is a wider re-crop of the source DEM and not a change here.
+# THE DEM IS MUCH COARSER THAN THE MESH THAT DRAWS IT, and as of S3 it is at its
+# real-world resolution: the glen is now mapped 1:1, so one raster sample is one
+# NASADEM arcsecond, about 17 m of Scotland. The clipmap's innermost ring has
+# 2-unit quads, so roughly eight quads sit between two pixel centres with nothing
+# but the bilinear filter carrying the surface across them. The glen is therefore
+# correct at the scale of ridges and valleys and SMOOTH at the scale of the
+# 4.2-unit tank. That is a known limitation and a deliberate one: size and detail
+# are separate problems, and this file only ever had the size. The fixes are a
+# finer source (UK LIDAR under OGL) or procedural noise added on top - see
+# docs/roadmap.md's Deferred section, and note that noise means ADDING a layer
+# rather than unioning one.
+#
 # Bilinear rather than nearest remains not optional - nearest-neighbour terraces
-# would now be over three world units wide.
+# would now be seventeen world units wide.
 #
 # Outside the footprint the edge value is extended, so a chunk grid larger than
 # `world_size` gets flat ground rather than a wrapped or mirrored glen.
@@ -166,39 +168,43 @@ var max_world_gradient: float = 0.0
 ## World units of height per real-world metre of elevation.
 ##
 ## THE ONE DIAL THAT DECIDES WHAT THIS VALLEY FEELS LIKE. The crop carries 877 m
-## of real relief and the world is 384 world units across, so a 1:1 mapping is
-## absurd; this compresses it. It cannot be reasoned out from the DEM alone -
-## tune it against Terrain.surface_height_range() and Terrain.surface_clearance()
-## and put the measured numbers in the commit, the way SDFHills.amplitude
-## documents its own.
+## of real relief; this compresses it. It cannot be reasoned out from the DEM
+## alone - tune it against surface_height_range() and put the measured numbers in
+## the commit, the way SDFHills.amplitude documents its own.
 ##
 ## IT IS PAIRED WITH world_size AND MUST MOVE WITH IT. Slope is height per unit
-## of horizontal distance, so widening the footprint without raising this halves
+## of horizontal distance, so widening the footprint without raising this divides
 ## every hillside angle - "the same glen, flatter" instead of "more glen at the
-## same steepness". Going from 192 m at 0.04 to 384 m at 0.08 is x2 on gain and
-## x0.5 on pitch, a net x1.0: max_world_gradient read 1.89054 at BOTH settings,
-## and that invariance is the check that says the pair really did move together.
+## same steepness". max_world_gradient is dimensionless and is the check that the
+## pair really did move together; it has now read the same number across three
+## world sizes:
+##
+##   192 m at 0.04     -> 1.89054
+##   384 m at 0.08     -> 1.89054
+##   2022 m at 0.42125 -> 1.89957   (x5.265625 on both, so x1.0 net; the 0.5%
+##                                   is the z axis, 2010 m over the same raster)
 ##
 ## THE DEFAULT DELIBERATELY IS NOT WHAT world_field.tres AUTHORS. 0.0194 is the
 ## scale that merely equalises TOTAL relief with the hills this replaced (877 m
-## onto the old 17 m); the level authors 0.08, measured below. Keeping the two
+## onto the old 17 m); the level authors 0.42125, measured below. Keeping the two
 ## different is what makes a .tres that failed to resolve VISIBLE - see
 ## CLAUDE.md on a null-guarded fallback whose defaults match the authored file
 ## and so reproduces its numbers exactly.
 ##
-## Measured over the whole 384 m footprint, at 0.08, with datum 327.75:
-##   Terrain.surface_height_range(24) -> (-20.538, 47.306, 16.793)
-##   Terrain.surface_clearance()      -> 24.694   (of a 144-unit-tall grid)
-##   max_world_gradient               -> 1.89054  (as at 192 m / 0.04)
-##   candidate-pool slope degrees     -> p25 5.570, p50 13.181, p75 18.069,
-##                                       max 46.502, under the tank's
-##                                       floor_max_angle of 0.9 rad = 51.57 deg
+## Measured 2026-08-30 over the whole 2022 x 2010 m footprint, at 0.42125, with
+## datum 327.75:
+##   HeightmapTerrain.surface_height_range(24) -> (-108.147, 249.096, 88.424)
+##   vertical_extent()                         -> 258.332
+##   max_world_gradient                        -> 1.89957
+##   candidate-pool slope degrees              -> p25 4.912, p50 13.488,
+##                                                p75 18.229, max 49.094, under
+##                                                the tank's floor_max_angle of
+##                                                0.9 rad = 51.57 deg
 ##
-## RAISING THIS COSTS GRID HEIGHT, and nothing warns when it runs out. 0.08 puts
-## 68 world units of relief in a box that was 96 tall, so main.tscn's chunks_y
-## went 2 -> 3. Measured: at chunks_y 2 surface_clearance() would have been
-## 0.694 - the peaks all but shearing off flat against the roof - and at
-## chunks_y 3 it is 24.694.
+## RAISING THIS NO LONGER COSTS GRID HEIGHT. Under marching cubes the surface had
+## to fit inside a meshed box and Terrain.surface_clearance() was the number that
+## said whether it did; a clipmap has no box, so the ceiling that used to bound
+## this dial is gone. What bounds it now is the eye and the tank's climb angle.
 @export var height_scale: float = 0.0194:
 	set(value):
 		height_scale = value
@@ -215,16 +221,21 @@ var max_world_gradient: float = 0.0
 ## World-space footprint the raster covers: x on the first component, z on the
 ## second, centred on `world_centre`.
 ##
-## AUTHORED TO MATCH THE CHUNK GRID, and it is the one number here that can
-## silently disagree with something else: Terrain's grid spans
-## chunks_x * chunk_resolution * voxel_size (8 * 24 * 2 = 384) and this must
-## equal it, or the glen is cropped or ringed by flat edge-extended ground.
-## Nothing enforces the equality, so a resized grid means re-authoring this - and
-## re-authoring height_scale with it, for the reason that dial's docblock gives.
+## AUTHORED TO MATCH THE TERRAIN NODE'S OWN FOOTPRINT, and it is the one number
+## here that can silently disagree with something else: HeightmapTerrain.world_size
+## in main.tscn must equal this, or the glen is cropped or ringed by flat
+## edge-extended ground. Nothing enforces the equality, so resizing the world
+## means re-authoring both - and re-authoring height_scale with them, for the
+## reason that dial's docblock gives.
+##
+## 2022 x 2010 is the crop's REAL ground footprint, from the provenance sidecar,
+## so the glen is now mapped 1:1 with Scotland. That is not a coincidence worth
+## preserving for its own sake; it is simply where the arithmetic stopped being
+## a compression.
 ##
 ## The default below is left at 192, which the level no longer authors, for the
 ## same reason height_scale's default is left at 0.0194: a .tres that failed to
-## resolve then reports a footprint half the grid's, which is visible in
+## resolve then reports a footprint a tenth of the terrain's, which is visible in
 ## surface_height_range() rather than silently correct.
 @export var world_size: Vector2 = Vector2(192.0, 192.0):
 	set(value):
@@ -252,20 +263,25 @@ func source_size() -> Vector2i:
 ##
 ## MEASURED, 2026-08: the PNG on disk holds 10226 distinct 16-bit values across
 ## its 14161 pixels, and this returns 256 - Godot's texture importer downconverts
-## 16-bit greyscale PNG to FORMAT_L8 (source_format 0). The precision loss is
-## real and it is still sub-voxel, with rather less room than it had: 877 m of
-## relief over 255 steps is 3.44 m per step, which at height_scale 0.08 is 0.275
-## world units against a voxel_size of 2.0, so a terrace is at worst
-## 0.275 / tan(slope) wide - 1.17 units at the pool's median slope of 13.181 deg.
+## 16-bit greyscale PNG to FORMAT_L8 (source_format 0).
 ##
-## RE-DERIVED RATHER THAN ASSUMED UNCHANGED, because it is easy to argue it is:
-## widening the world preserved every SLOPE, so the terrace ANGLE is the same as
-## it was. The width is not. Both the step height and the horizontal scale
-## doubled, so the terrace doubled with them - it was 0.6 units at 192 m / 0.04
-## and it is 1.17 now. "Well inside one voxel" has become "about six tenths of
-## one": still inside, and no longer with much margin. Raise height_scale again,
-## or drop voxel_size, and it stops being true; this is the number that says so,
-## and an .exr raster is the fix when it does.
+## RE-DERIVED FOR THE 2022 m WORLD, AND THE FRAMING WAS WRONG BEFORE. 877 m of
+## relief over 255 steps is 3.44 m per step, which at height_scale 0.42125 is
+## 1.449 world units - up from 0.275 at 384 m / 0.08, exactly the x5.266 the
+## world grew by. Earlier versions of this note measured that against the
+## voxel_size and called it a terrace WIDTH; there are no terraces, because the
+## surface is bilinear between raster samples and therefore continuous. What the
+## quantisation actually produces is a GRADIENT quantum: 1.449 units of height
+## over the 17.136-unit pixel pitch is a slope step of about 4.8 degrees, and
+## that ratio is scale-INVARIANT - it was 4.8 degrees at 192 m too, because
+## height_scale and world_size have always moved together.
+##
+## So the artifact is 17-metre facets meeting at quantised slopes, not steps, and
+## widening the world did not make it worse relative to the glen. It did make it
+## worse relative to the TANK: the height quantum is now 1.449 units against a
+## 4.2-unit vehicle and a 2.0-unit clipmap quad, where it used to be 0.275. An
+## .exr raster is the fix if that ever reads badly, and the converter's sidecar
+## carries the range needed to rebuild one.
 ##
 ## Computed on read rather than cached: it is a measurement nobody asks for
 ## during play, and a cached copy is one more thing that can go stale.
