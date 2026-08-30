@@ -258,10 +258,47 @@ it against `s1-contours-after.png` and getting delta 0 on every field, not by mt
 ---
 
 ## S2 — Strip the Wild Metal Country combat scaffolding
-- status: todo
+- status: done
 - depends: S1b
-- gate: tests 1–6 green; no dangling `ext_resource` or orphan `.uid`; every harness value on
-  `main.gd` unmoved except the spawn counters, which go to zero against an empty manifest.
+- landed: 2026-08-30, Reviewer-verified. Deletion only, and it measures as deletion only. The
+  baseline was taken by the orchestrator at HEAD **before the first spawn**, because the first
+  edit destroys it. **Unmoved, all bit-identical:** `chunks_total` 192, `terrain_triangles`
+  95058, `craters_carved` 0, `explosions_spawned` 0, `tank_spawn_height` **−8.57074508368969**
+  (the sharp one — derived from the terrain at the origin, so any movement would mean the level
+  build changed), `trip_active` false, `spawn_failures` 0, both world extents 192.0,
+  `vertical_extent()` 49.06. **Spawn counters to zero against an empty manifest:**
+  `entities_spawned` 17 → **0**, `enemies_alive` 5 → **0**, `enemies_total` 5 → **0**,
+  `spawn_manifest.size()` 2 → **0**, and both clearances to the documented `inf` sentinel
+  (`min_spawn_clearance` 9.0377197265625, `min_ground_clearance` 0.19999915711526). Corroborated
+  off a quantity the change does not compute: `$Spawn.get_child_count()` = 0.
+  **The empty manifest is the valley's, not a fallback's** — `main.gd:181` builds a default
+  `LevelDef` whose manifest is *also* empty, so `size() == 0` alone cannot tell them apart.
+  Settled on the reference: `level.resource_path` = `res://levels/valley.tres`, plus
+  `field` / `surface_material` / `environment` all resolving to real paths where a
+  default-constructed `LevelDef` has `null` for each, plus `errors=0` proving the
+  `push_error` on that fallback branch never fired. Note `spawn_clearance` 4.0, `trip_fade` 1.2,
+  `spawn_seed` 20260826 and `player_keepout` 26.0 are identical in the `.tres` and in the script
+  defaults, so **none of them could have distinguished the two paths.**
+  `check_resources PASS {"checked":12 → 9,"failed":[]}` — exactly three resources left the
+  project and nothing else did. No orphan `.uid` (disk scan; the `.uid` was deleted as a pair).
+  `load_steps` 13 → 7. `5_rule` and `6_group` are kept, unreferenced: `Array[SpawnGroup]([])`
+  needs `6_group` to resolve the array's element type, and S4 needs both declarations back.
+  `CollisionLayers` — `PICKUPS`/`TRIGGERS` gone, `PLAYER_SHELLS` (1<<2) and `ENEMY_SHELLS`
+  (1<<4) untouched; live tank re-measured at layer **2** / mask **9**, terrain chunk **1** / **0**,
+  and `(layer | mask) & 20 = 0` across live bodies proves the reserved bits are carried by
+  nothing. Tests 1–6 pass; fps min **118.0** avg 119.7, load **5.104 s** headless / **4.34 s**
+  windowed, zero errors and zero warnings. Test 6 `RENDER: PASS`, and against the control the
+  removal is *localized*: whole frame, ground box and sky box all `delta.luma_mean 0.0`, with 6
+  of 32 swept columns losing the props' emissive teal (c10 `delta.hue_frac.cyan` −0.0024 /
+  `delta.distinct_colours` −8; c25 −0.0023 / −10) and the other 26 pixel-identical.
+- also noted: the `.godot/` cache was stale after the deletion — it still registered `EnemyBody`
+  and still recorded `valley.tres` depending on both deleted scenes — **and tests 1 and 2 passed
+  green over it**. `CLAUDE.md § Traps` describes the move/rename symptom (`Failed loading
+  resource:`), which never appeared here. Deleted and rebuilt; filed to the learnings inbox.
+- unverified: nothing that bears on the gate. The two reserved collision constants could not be
+  read directly — `--harness-eval` cannot reach a `const` on a `class_name` script with no live
+  instance — so their bit positions are source-verified and corroborated by absence across live
+  bodies, not harness-verified. Filed to the inbox.
 
 Deletion only. Nothing is added, which is what makes it cheap to verify and worth doing before
 anything is built on top.
@@ -398,6 +435,26 @@ take tank shell hits and die on the fifth.
 **After S3 on purpose.** Placement rules are thresholds against measured terrain quantiles, and
 `entities/PlacementRule.gd`'s header says every one of them must be re-derived when the ground
 field changes. Authoring them before the world triples in scale means tuning them twice.
+
+**What S2 left you** (2026-08-30). `levels/valley.tres` now has `spawn_manifest =
+Array[SpawnGroup]([])`, so this session **populates an empty manifest** rather than adding a
+third group beside guardians and props. The `5_rule` (`PlacementRule`) and `6_group`
+(`SpawnGroup`) `ext_resource` declarations were deliberately kept in that file, unreferenced, so
+authoring a group here needs no new declaration — `6_group` is in fact load-bearing already, as
+the empty typed array will not resolve without it. `Damageable`, `DamageProfile`, `SkinSlot`,
+`Spawner` and `TerrainAnalysis` all survive untouched. What does **not** survive is any example
+to copy: `guardian_placeholder.tscn` and `prop_placeholder.tscn` are gone, so a tower scene is
+authored from nothing. The deleted guardian was `StaticBody3D` + `CollisionShape3D` + a `Skin`
+node holding meshes + a `Damageable` carrying a `DamageProfile`, and its layer/mask were set in
+script rather than in the `.tscn` — read `entities/CollisionLayers.gd`'s header for why before
+setting them anywhere else. The old guardian profile, as a starting point rather than an
+authority: `max_health` 240.0, `armour` 8.0, `resistance` (1, 0.75, 1.25),
+`min_damage_fraction` 0.1. Its placement rule, which S3 invalidates and this session must
+re-derive: ridgelines, slope 0–25°, elevation percentile 0.65–1.0, openness 0.7–1.0,
+`ground_clearance` 0.4, `separation` 28.0.
+
+The old thresholds are also still written down in `docs/foundation-plan.md` §4, kept there on
+purpose as the derivation to start from — not as numbers that still hold.
 
 This is the first change that makes a shell *do* something, so it is bigger than it looks.
 `tank/shell.gd` masks `CollisionLayers.TERRAIN` only and applies no damage at all — it emits

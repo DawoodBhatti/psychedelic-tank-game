@@ -29,12 +29,13 @@ class_name CollisionLayers
 # THE WINDOW BEFORE _ready() IS REAL BUT NOT OBSERVABLE, and this was checked
 # rather than assumed. Assigning in _ready() means a body carries Godot's
 # default layer 1 from the moment it is constructed until its _ready() runs, so
-# in principle a physics query in that gap would see a guardian on the terrain
-# layer. It cannot happen here: Tank._ready() runs before LevelRunner._ready(),
-# a guardian's EnemyBody._ready() runs synchronously inside the add_child() that
-# creates it, and no physics step occurs anywhere in between. The same argument
-# covers Spawner._place(), which add_child()s an entity before setting its
-# global_position and so leaves it at the origin for the rest of that call.
+# in principle a physics query in that gap would see a spawned body on the
+# terrain layer. It cannot happen here: Tank._ready() runs before
+# LevelRunner._ready(), a spawned body's _ready() runs synchronously inside the
+# add_child() that creates it, and no physics step occurs anywhere in between.
+# The same argument covers Spawner._place(), which add_child()s an entity before
+# setting its global_position and so leaves it at the origin for the rest of
+# that call.
 # Anything that later spawns a body DURING gameplay should re-check this rather
 # than inherit the conclusion.
 #
@@ -60,11 +61,3 @@ const ENEMIES := 1 << 3
 
 ## Editor layer 5. RESERVED AND UNUSED, for the same reason as PLAYER_SHELLS.
 const ENEMY_SHELLS := 1 << 4
-
-## Editor layer 6. Power-core pickups (Area3D). Declared here so the numbering
-## is settled; nothing carries it until the cores are built.
-const PICKUPS := 1 << 5
-
-## Editor layer 7. Trigger volumes - the collection gate (Area3D). Declared for
-## the same reason as PICKUPS.
-const TRIGGERS := 1 << 6

@@ -15,11 +15,14 @@ class_name LevelDef
 # deliberately stays on the Terrain node, because it is a cost/fidelity dial for
 # the renderer rather than a description of this valley.
 #
-# DELIBERATELY NOT HERE YET. Objectives - cores, the gate, win and lose - are
-# named in docs/foundation-plan.md under this resource and are session G. They
-# are absent rather than stubbed, so nothing later has to work around an empty
-# shape guessed before the systems that fill it exist. The spawn manifest below
-# arrived the same way in session D.
+# DELIBERATELY NOT HERE. Objectives - cores, the gate, win and lose - were the
+# Wild Metal Country loop, and S2 cancelled them; nothing schedules them now.
+# docs/roadmap.md is the backlog and the state.
+#
+# The rule that outlives them is the one worth keeping: absent rather than
+# stubbed, so nothing later has to work around an empty shape guessed before the
+# system that fills it exists. The spawn manifest below arrived that way in
+# session D.
 
 ## The world's density field, craters included. Handed to the Terrain node
 ## before it builds, which is why the .tscn no longer carries one: two places

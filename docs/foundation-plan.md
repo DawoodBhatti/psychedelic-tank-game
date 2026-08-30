@@ -23,7 +23,6 @@ archetypes. This is one level, built on foundations that make the second one che
 |---|---|
 | Valley shape | **DEM heightmap base + fBm detail + smart scatter.** Real elevation data supplies the large-scale shape; noise supplies everything below ~30 m. |
 | Heightmap sourcing | **NASADEM 30 m via OpenTopography**, chosen 2026-08-25 — the only public-domain route that covers Scotland. Crop a real glen. Full provenance, crop plan and licence structure in `assets/incoming/terrain-heightmap.source.json`. Copernicus excluded (requires attribution). |
-| Core retrieval | **Drive-over pickup**, deliver by entering the gate zone. The objective API is written so a tractor-beam tow replaces the pickup without touching the tracker, the HUD or the LevelDef. |
 | Modularity | **Both axes.** Content is data (`.tres`); tank stats sit behind a modifier stack so in-game upgrades drop in later as data. |
 | Asset sourcing priority | **Player tank / vehicle hulls first.** Guardians and structures deferred — nothing integrates before session H. |
 
@@ -193,16 +192,16 @@ and **openness / sightline**. Placement rules then become data:
 | Entity | Rule |
 |---|---|
 | Guardians | Ridgelines with long sightlines |
-| Power cores | Hollows and dead ground |
-| Gate | Flat ground near a map edge |
 | Props | Mid-slopes, off the drivable routes |
 
 This is the piece that makes a real DEM worth having: it finds the valley's natural strongpoints
 instead of us placing them by hand.
 
 ✅ **Landed in D**, as `TerrainAnalysis` plus a `PlacementRule` resource per rule. Guardians and
-props are authored in `levels/valley.tres`; cores and the gate are session G and are absent
-rather than stubbed.
+props *were* authored in `levels/valley.tres` until **S2 emptied the manifest** — the mechanism
+stays, the content went. See `docs/roadmap.md`. The thresholds below are kept because they are
+the derivation whatever repopulates the valley starts from, not because anything carries them
+today.
 
 **Every slope, openness and elevation threshold in that manifest sits between two measured
 numbers**, which is only possible because `TerrainAnalysis.metrics_summary()` writes the
@@ -258,8 +257,6 @@ than reading intent off the diff.
 | 2 | 3 | Player shells | **reserved** — shells are raycasts with no body |
 | 3 | 4 | Enemies | new |
 | 4 | 5 | Enemy shells | **reserved**, same reason |
-| 5 | 6 | Pickups (power cores) | new |
-| 6 | 7 | Trigger zones (gate) | new |
 
 Masks:
 
@@ -270,8 +267,6 @@ Masks:
 | Player shell (raycast) | — | 1 today; 1, 4 in **(E)** |
 | Enemy body | 4 | 1, 2 |
 | Enemy shell (raycast) | — | 1, 2 |
-| Core pickup `Area3D` | 6 | 2 |
-| Gate `Area3D` | 7 | 2 |
 
 Bits 2 and 4 are reserved rather than used: nothing needs to *detect* a shell yet, but point
 defence or shell-vs-shell would, and renumbering later is the expensive version.
@@ -288,10 +283,6 @@ Added to `autoloads/game_events.gd`:
 ```gdscript
 signal entity_damaged(entity: Node3D, amount: float, source: Node3D)
 signal entity_destroyed(entity: Node3D, source: Node3D)
-signal core_collected(core: Node3D)
-signal core_delivered(core: Node3D, delivered_total: int)
-signal objective_changed(objective_id: String, state: Dictionary)
-signal level_complete(success: bool, stats: Dictionary)
 ```
 
 **Stays local, does not go on the bus:** turret ↔ its tank, an `AIBrain` ↔ its own body, a
@@ -326,10 +317,12 @@ never reset.
 | B | ✅ **done 2026-08-26.** Level data + composite field: `LevelDef`, `LevelRunner`, `SDFComposite`. 16 engine launches, 2 agent turns | **Met.** Single-layer composite over the existing `SDFHills`: `chunks_total` 32, `terrain_triangles` 28414, `surface_height_range()` (-9.792703, 8.059858, 2.712966) — bit-identical before and after. Tests 1–6 pass; fps min 120, load 1.11 s |
 | C | Heightmap: `SDFHeightmap`, the glen as a field layer. **Asset is prepared but NOT in the repo.** Glen Coe cropped, converted and verified 2026-08-27 to `assets/incoming/valley-heightmap.png` (119×119, 16-bit, 2022 × 2010 m of ground, 877 m of relief) — that folder is **both `.gdignore`-fenced and `.gitignore`d**, so the engine cannot see the file and neither can a fresh clone. **First action is to copy it into a feature folder**, which is the step that both makes it importable and puts it under version control. On a machine without it, re-fetch from `realised_bbox` in the source sidecar and re-run the converter | The glen renders and is drivable; load time still under 30 s |
 | D | ✅ **done 2026-08-27.** Entity layer + scatter: `Damageable`, `CollisionLayers`, `Spawner`, `TerrainAnalysis`. 32 engine launches, 5 agent turns, two review rounds | **Met, Reviewer-verified.** `spawn_failures` 0, 17 of 17 placed (5 guardians, 12 props). `min_spawn_clearance` +0.35233 m (tightest pair prop_2↔guardian_0, 28.3523 m against a 28 m requirement — computed by hand off the two live transforms, not read off the getter the change itself computes). Surface snap corroborated at non-integer x/z, first *and* last member of a group: guardian_0 0.40000, prop_11 0.19999. Collision measured off live nodes — tank 2/**9**, guardians 8/3, and reserved bits 2 and 4 provably empty (OR of every layer and mask across all nine bodies `& 20` = 0). `chunks_total` 32 and `terrain_triangles` 28414 unmoved. Tests 1–6 pass; fps min 120, load 1.195 s. **Test 6 was shot and column-swept in round 1; in round 2 it was passed by measured identity rather than a fresh shot** — every sampled position bit-identical and the `entities_scattered` log entry byte-identical, so the frame cannot differ |
-| E | Combat: `WeaponMount`/`WeaponDef`, damage, tank health, `StatBlock` | Tank can die; shells damage things |
-| F | Guardians: turret + hunter, `AIBrain` | Enemies acquire and shoot back |
-| G | Objective: cores, gate, tracker, HUD, win/lose | Full loop playable start to finish |
-| H | Art: swap skins to downloaded models | Renders; no regression on tests 4 and 5 |
+
+**Sessions E–H are cancelled** (S2, 2026-08-30). Combat, guardians, the core/gate objective and
+the art swap are no longer the plan. **`docs/roadmap.md` is the backlog and the state — read it
+for what happens next.** Anything still tagged `(E)`, `(F)`, `(G)` or `(H)` in this file
+describes work that is not scheduled; it is left where it stands as the derivation a later
+session would start from.
 
 Session B's gate — *nothing visibly changes* — is what makes the riskiest refactor cheap to
 verify.
