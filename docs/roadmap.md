@@ -951,6 +951,163 @@ actually doing once rather than asserting.
 
 ---
 
+## S8 — Tunable dials: convert the feel constants to exports
+- status: todo
+- depends: S7
+- gate: **nothing changes.** Every converted dial reads its pre-conversion value off the live
+  node through plain `get()` — the whole list captured in one batch **before the first edit**;
+  `tank.tscn` stores none of them, so the script default stays the single source; setting one
+  through `set()` moves a behavioural consequence rather than only the stored value; and
+  `Shell.NOMINAL_DAMAGE` still reads through `get_script_constant_map()` with
+  `Tower.hits_to_kill()` still returning **5**.
+
+**What is wanted:** the ability to change how the tank feels while the game runs. **This session
+builds no UI at all** — it is the half of that problem which turns out to be free, and it is
+worth doing on its own even if S9 is never built.
+
+**Why this is the whole unlock, and it took a wrong turn to find.** Godot already ships live
+tuning: run from the editor, switch the Scene dock to **Remote**, click a live node, and the
+Inspector edits its properties with the game still running. That covers every `@export` var and
+every built-in node property — `muzzle_velocity`, `reload_time`, `recoil`, `gravity`, transforms,
+lights, material parameters — at zero build cost. What it cannot touch is a `const`, because a
+`const` is not a property and never appears in a property list.
+
+So the reason live tuning feels unavailable in this project is **not** a missing panel. It is that
+the twelve dials most worth turning were written as `const`s. Convert them and the editor tunes
+them **today**, with nothing built. That is why this session comes before the panel and why the
+panel is optional.
+
+**The dials, measured 2026-08-31.** All in `tank/tank.gd`: `FORWARD_DRIVE` 26.0, `REVERSE_DRIVE`
+14.0, `BOOST_MULTIPLIER` 2.6, `TURN_RATE` 95.0, `DRAG_COEFF` 0.055, `BRAKE_DRAG` 0.9,
+`LOOK_SENSITIVITY` 0.25, `LOOK_SPEED` 130.0, `PITCH_MIN` −12.0, `PITCH_MAX` 42.0,
+`CAMERA_PITCH_FOLLOW` 0.6, `CAMERA_PITCH_BIAS` −5.0. Already `@export` and needing nothing:
+`gravity`, `tilt_response`, `reload_time`, `muzzle_velocity`, `recoil`, `spawn_position`,
+`death_height`. Review `terrain/sdf/SDFComposite.gd` (2 consts) and `terrain/sdf/TerrainField.gd`
+(1) on the same test — **is it a dial, or a contract?** — and convert only dials.
+
+**Three conversions are forbidden, and each for a different reason.**
+- `Shell.NOMINAL_DAMAGE` — `Tower.hits_to_kill()` reads it **off the class with no instance**,
+  which is exactly what makes S4's "five hits" derived rather than written down twice. An
+  `@export var` cannot be read that way, so converting it silently breaks the derivation. The
+  gate re-checks `hits_to_kill()` for this reason.
+- `CollisionLayers`' six consts — referenced statically as `CollisionLayers.TERRAIN` everywhere,
+  and not dials in any sense. `CLAUDE.md § Code standards` calls them load-bearing.
+- `Tower.STAGE_EPSILON` — a correctness guard, not a feel dial. Exposing it invites setting it to
+  0.5, which silently breaks crack staging.
+
+**The migration cost, which is real and is part of this session.** `CLAUDE.md § The dev harness`
+documents that the harness can read `const`s via `get_script_constant_map()`, which plain `get()`
+cannot — and **its worked example is literally `["FORWARD_DRIVE"]`**, a dial this session
+converts. So `CLAUDE.md`'s example must change in the same pass, or the pipeline's own
+documentation demonstrates a read that no longer resolves. Every converted dial loses its
+constant-map read and gains a plain `get()`; that is a straight improvement for tuning and a
+straight loss for nothing, but the greps have to be done.
+
+**The trap: an `@export` can be overridden by the scene, a `const` cannot.** `tank.gd`'s own
+comment records this failure for collision layers — the `.tscn` and `_ready()` set the same two
+values, "two places to disagree and this one silently winning." Converting twelve consts creates
+twelve new opportunities for exactly that, the moment anyone opens `tank.tscn` in the editor and
+touches them. The gate checks the `.tscn` stores none of them; whether to defend it beyond that
+is this session's call.
+
+**Not in this session:** any panel, any UI, saving values to disk, and any change to what the
+dials are *set* to. This is a conversion, and the gate is that nothing moves.
+
+---
+
+## S9 — In-game tuning panel
+- status: todo
+- depends: S8
+- gate: pointed at a node **added to the tree at runtime**, the panel produces one control per
+  `@export` on it — proving discovery rather than a hardcoded list; driving one control's apply
+  path moves a value read off the **target**, not off the panel (set `muzzle_velocity`, then
+  measure the speed of an actually-fired shell); with the panel hidden, test 4's worst sample is
+  within noise of the pre-panel **119.0**; and **S7's gate still passes unchanged** — the
+  terrain-only scene loads with no `LevelRunner`, no `GameEvents` and no autoloads beyond the
+  logger.
+
+**What is wanted** (user, 2026-08-31): an in-game panel for changing player, enemy and world
+settings while the game runs, with no reload. Read and write live values only — **values are lost
+on restart and that is the agreed scope.** You keep the good ones by hand-editing the `.tres` or
+the script afterwards.
+
+**Why this is still worth building after S8, and the case is narrower than it looks.** S8 makes
+every dial in the game reachable from the editor's **Remote** tab, so **the panel adds no reach —
+it adds no ability to tune anything that could not already be tuned.** It buys exactly three
+things the Remote tab cannot, and the session should be judged against these and nothing else:
+
+- **Mouse capture, and this is the strongest of the three.** This game captures the mouse. Tuning
+  drive feel is drive → feel it → nudge → keep driving, and alt-tabbing to the editor breaks
+  capture and breaks that loop on every single adjustment. An in-game slider does not. Everything
+  else here is a nicety; this one is the reason to build it.
+- **The editor has to be open for the Remote tab, and `CLAUDE.md` requires it be closed** before
+  an agent edits files — with the project open the editor re-saves resources from its own memory
+  and silently overwrites on-disk changes, which has already destroyed a completed refactor in
+  this repo. So the Remote tab and this project's own pipeline cannot both be in use.
+- **An exported build has no remote inspector at all.**
+
+**Check one thing before building, because it can shrink this session further.** How faithfully
+the Remote tab edits properties *inside* a referenced `.tres` — `max_health` on
+`entities/profiles/tower.tres`, say — is **unconfirmed**. Drilling into resources over the remote
+debugger does work in general; whether it covers this case cleanly decides whether enemy and tower
+tuning need the panel at all, or whether the panel is only ever about the player and the world.
+One run from the editor answers it and costs no launch budget.
+
+**Not for agents, and this is the line that keeps the session small.** `--harness-eval` already
+sets properties and calls methods on the live tree — only the `=` *syntax* fails
+(`.claude/learnings/2026-08-28-harness-eval-cannot-assign.md`). The panel buys nothing a test
+cannot already do. It is for a **human tuning by feel**, and a future session must not grow it
+into a test surface.
+
+**Do not build a runtime override layer.** An indirection every dial is read through — panel value
+if set, else the authored value — puts a dictionary lookup in `_physics_process` for a debug
+affordance. S8 already made the dials directly settable; write to them.
+
+### 1. Discovery, not a list
+
+**Reflect over the target rather than naming its properties.** `Object.get_property_list()`
+filtered to `PROPERTY_USAGE_EDITOR` gives the `@export`s with their types, hints and ranges, which
+is enough to build a control per dial with no per-system code at all. That is what the gate's
+runtime-added node checks.
+
+**This is also the whole of how S8 avoids undoing S7.** S7 exists to stop `terrain/` and
+`entities/` reaching for autoloads by name so the folders lift into another project. A panel that
+those systems **register with** is a new call from the extracted code back into a UI singleton —
+the exact coupling S7 spent a session removing. Reflection is one-directional: the panel reads the
+tree, and nothing it tunes knows it exists. **No file under `terrain/` or `entities/` may gain a
+reference to the panel.** S7's gate is repeated in S8's for this reason.
+
+### 2. What it tunes
+
+Player (`tank/tank.gd`), enemies (`entities/enemy_tank.gd`, S4c), world. The world dials are the
+awkward ones and are worth naming: terrain shader uniforms are not `@export`s, so they need their
+own path — `main.gd:213` and `328` already set and read `trip_amount` through
+`set_shader_parameter` / `get_shader_parameter`, which is the pattern to follow. Anything that
+requires a terrain **rebuild** to take effect (`chunk_resolution`, `world_size`, `height_scale`)
+either triggers one on apply or is shown read-only. A slider that silently does nothing until
+reload is worse than no slider.
+
+### 3. Cost when closed
+
+Hidden means hidden: no `_process`, no polling of values nobody is looking at. The gate measures
+this against test 4's 119.0 floor rather than trusting the structure.
+
+### Testing notes carried from house rules
+
+**The toggle keybinding cannot be tested.** `--harness-eval` cannot reach `Input` or `InputMap`,
+so per `CLAUDE.md`, call the toggle's branch body directly on the live node and **report the
+binding as unverified** — do not build input synthesis to close it.
+
+**Test 6 is mandatory** — this is new UI. And **do not prove a dial works by reading the panel's
+own stored value back**; that is re-reading what the change wrote (`CLAUDE.md § Traps`). Read the
+target, or a consequence of the target.
+
+**Not in this session:** saving tuned values back to disk (explicitly out of scope, 2026-08-31 —
+it would have the game rewriting its own authored resources, which collides with the write-guard
+model), named presets, undo, remote/networked tuning, and any use of the panel as a test surface.
+
+---
+
 ## Deferred
 
 Named so they are not rediscovered as ideas: scoring, win and lose conditions, multiple levels,
