@@ -117,9 +117,10 @@ day the wrapper landed. This is why `gd.sh` is the only sanctioned way to start 
 why it launches **exactly once per invocation**: a test sequence must be several calls to it
 rather than one script that loops, or the count stops being real.
 
-### The counter over-reports by one per denied engine command
+### The counter over-reports by one per denied engine command — FIXED 2026-08-31
 
-- date: 2026-08-19, folded 2026-08-26
+- date: 2026-08-19, folded 2026-08-26, fixed in fold 3 (see "The launch counter no longer
+  charges for denied commands"). The history below is why, and is left as written.
 
 `settings.json` puts four PreToolUse hooks on the `Bash` matcher. `count_godot_launches.py`
 increments its on-disk counter and returns `hooklib.context(...)`, which does not vote;
@@ -366,6 +367,193 @@ instead of on every turn of every session.
 
 ---
 
+## Fold 3 — 2026-08-31
+
+Sixteen entries in, sixteen out. **`SURFACE: 56207 → 66978, +10771` since fold 2**, measured
+before this section was written. That figure is not all this fold's: `begin.md` (6136) was
+written between folds and is new to the count, and `CLAUDE.md` had already drifted +541 in the
+S-series sessions. **This fold's own share is +5079, of which `CLAUDE.md` is +2417** — by a
+wide margin the largest single fold in this pipeline's history, against a command that asks for
+roughly flat.
+
+**Say plainly what that means: on this measure the fold did not work.** Sixteen entries is four
+times any previous inbox and nine of them targeted `CLAUDE.md`, so some growth was owed — but
+the first draft of this fold added +3437 to `CLAUDE.md` and a second pass over my own additions
+cut a fifth of it back out as evidence that belonged here. Every addition was compressed to the
+rule; every measurement it rests on is in this section. The one structural cut available was
+taken (below). It was not enough, and the next fold should open by asking what comes OUT.
+
+**The one cut, and the category it came from.** `CLAUDE.md § The loop` carried ~840 characters
+of agent-resumption procedure — recover from disk, restate what was measured, when to open an
+`.output` transcript. Only an orchestrator can act on any of it: the Doer and the Reviewer
+cannot spawn an agent or send it a message, and they paid for those bytes on every turn. Both
+halves already existed in the orchestrator files (`begin.md § 1` for the `in-progress` case,
+`build.md § The cycle` for the send-back). Cut to a three-line pointer; the unique content —
+the killed-mid-run case and the transcript advice — moved into `build.md` beside the send-back
+rule it belongs to. Net surface ~0, but the file paid thousands of times is smaller.
+
+**Evidence stripped off the in-force surface and kept here.**
+
+- **A `--harness-eval` batch fails as a unit.** 50 expressions in one launch
+  (`session_20260828_140810_367.log`) returned 47 correct values and 3 errors — `Invalid named
+  index 'world_size' for base type Object`, from addressing `field.ground` instead of
+  `field.ground.layers[0]`. The launch ended `HARNESS: eval FAIL {"count":50,...}` and
+  `GD: exit=1 script_errors=0`, with every good value in the same stdout. Two rules in
+  `CLAUDE.md` interacted the wrong way round: "prefer branching on the exit code" and "batch
+  every question into ONE launch". The harder you batch, the more a single typo takes down.
+- **`--harness-eval` cannot assign.** `scene.terrain.destructible = true` → `{"error":
+  "Expected '='"}`; the batch carried on and the next read returned `false`, the pre-write
+  value. `scene.terrain.set('destructible', true)` is a call, parses, and runs the GDScript
+  setter — proven in the same batch by a connection count moving to 2
+  (`session_20260828_135637_478.log`).
+- **A failed read means the wrong object more often than the wrong value.**
+  `scene.terrain.field.ground.max_world_gradient` errored, `.get('max_world_gradient')`
+  returned `<null>`, `['max_world_gradient']` errored — while `.vertical_extent()` and
+  `.surface_height(0,0)` on the same object returned correct numbers. One expression settled
+  it: `.get_script().resource_path` → `res://terrain/sdf/SDFComposite.gd`. The property was on
+  `layers[0]`, and returned `1.89957169805485` first try. Cost: 2 launches spent on a wrong
+  theory about `get()` on Resources. The `<null>` form is the dangerous one — a missing
+  property and a real null print identically.
+- **The const trick needs a live instance.** `entities/CollisionLayers.gd` is a `class_name`
+  holder deliberately never instantiated. Both routes fail: `CollisionLayers.PLAYER_SHELLS` →
+  `Invalid named index 'CollisionLayers' for base type Object`, and
+  `load("res://entities/CollisionLayers.gd").get_script_constant_map()` → `On call to 'load':`
+  (logs `session_20260830_105556_362.log`, `session_20260830_105637_366.log`).
+  `DevHarness._cmd_eval` parses with `expr.parse(source, ["scene","tree","root"])` and executes
+  against `self`, so global script classes and `load` do not resolve. The consequence for
+  reserved collision bits is in `CLAUDE.md § Code standards`: they are reserved *because* no
+  body carries them, so the only evidence is
+  `(tank.collision_layer | tank.collision_mask) & 20 = 0` plus a source read.
+- **A sweep resolves nothing along the axis it does not cut.** A 30-column sweep of
+  `x 0.35–0.65, y 0.55–0.85` reported `delta.luma_mean` "oscillating ±5–8 with a ~4-strip
+  period" as evidence of contour banding. Each strip averaged 498 px of height — many contour
+  lines — so what it measured was terrain shape varying in x, and it would have appeared on a
+  control with no contours in it. The same frame in 40 explicit horizontal strips (~4 px tall)
+  showed the real structure: troughs at `delta.luma_mean` −0.7 / +0.4, peaks at +28.8, period
+  ≈29 px, `delta.hue_frac.grey` moving in phase (+0.24 → +0.68). Both sweeps "showed banding".
+  This is now `--rows`, with the reasoning in the script's own docstring.
+- **A control shot is a control only for its commit.** S1b's gate named
+  `.claude/images/s1-contours-before.png`, which is S1's *pre-contour* frame — and S1's commit
+  (7c0a5a8) changed two things at that pose: the contours, and `emission_strength 2.4 → 1.6`,
+  `line_width 0.045 → 0.035`. Against it, a pure contour *fade* measures as **adding** +14.9
+  luma, which a fade cannot do. The mtime argument advanced at the time is unsound — `/begin`
+  commits after the session ends, so every image predates its own commit. The sound test needs
+  no launch: `check_render.py s1-review-after.png --control s1-contours-after.png` measures
+  delta 0 on every field, while `s1-contours-after.png --control s1-contours-before.png`
+  measures +14.9 luma / +0.391 grey.
+- **A per-shape dedup test passes vacuously when the query returns one shape.** A blast 4.0
+  units from a tower with no direct target took `Damageable.health` 100.0 → 95.0, one
+  application of `splash_damage_at(4.0)=5.0` — which reads exactly like a dedup pass and tests
+  nothing, because tower.tscn's shaft spans y0–20 and its cap y20–23.2, so an 8-unit sphere at
+  the base overlaps ONE shape and an un-deduped loop prints the same 95.0. Confirming it needed
+  a second launch: `set("blast_radius", 30.0)` and a blast at `tower + (0,20,0)` overlaps both,
+  giving 100.0 → 96.0 against 92.0 un-deduped. The shipped geometry cannot reach the path at
+  all — any point overlapping both shapes is ≥12 units above the origin, and splash is measured
+  to the origin against an 8-unit radius.
+- **A stale `.godot/` after a deletion has no symptom.** After removing `enemy_body.gd`,
+  `guardian_placeholder.tscn`, `prop_placeholder.tscn` and `profiles/guardian_hull.tres`:
+  `test 1 GD: exit=0 script_errors=0` (`session_20260830_104448_365.log`) and `test 2
+  check_resources PASS {"checked":9,"failed":[]}` (`session_20260830_104459_360.log`), while
+  `global_script_class_cache.cfg` still registered `EnemyBody → res://entities/enemy_body.gd`
+  and `filesystem_cache10` still recorded `valley.tres` depending on both deleted scenes. No
+  `Failed loading resource:` was ever emitted. After `rm -rf .godot` + `--headless --import`
+  both tests are green again, indistinguishable from the green they gave over the stale cache.
+  Now warned by `diff.sh`, which the Reviewer already runs.
+- **The dirty-tree pre-flight named the wrong risk and offered a fix that destroys the
+  baseline.** `build.md` said a dirty file leaves no obtainable "before" and suggested "commit
+  or stash first". Both halves were false in the run that found it. The before *was* obtainable
+  — it lives in the working tree, and one batched launch
+  (`session_20260828_134113_366.log`, 34 expressions) captured `terrain_triangles 23672`,
+  `max_world_gradient 1.89054`, `shell_exploded.get_connections().size() 2`, every later
+  comparison in the run being made against those. And stashing would have destroyed it: HEAD
+  (`8b84b95`) was the fBm-hills world, while the Glen Coe DEM existed only in the working tree,
+  so the widening — whose acceptance criterion was `max_world_gradient` coming back unchanged —
+  would have been tuned against terrain the user had already replaced. The real risk of
+  proceeding dirty is that `git checkout` can no longer separate this task's damage from the
+  uncommitted work already there, which argues for committing and only for committing.
+
+### Authoring roadmap gates
+
+Two entries, one shape: a gate is written before the code exists, by someone who has not shot
+the frame or run the round-trip. It binds a Doer that will read it literally.
+
+**A gate may prescribe a method that cannot work.** S1b's gate said "shoot the valley floor
+from two distances — (a) changes with the grazing angle, (b) does not." Both poses saturated at
+the bottom band — luma 250, `hue_frac.grey` 0.62, `hue_frac.orange` ~0.0003 — because a
+near-horizontal view maximises the shader's rim term across the whole ground and swamps the
+contour contribution. The Doer substituted two measurements the gate had not named: sampling
+`1 - |n.y|` off the live chunks (valley floor 0.0000–0.0036 against hillsides 0.0140–0.2295),
+and arithmetic showing a minor line emits luminance ~1.20 against a 0.85 glow threshold
+everywhere in the frame, which rules out (b) on its own premise. The diagnosis was sound and
+the prescribed method contributed nothing. So: gates prescribe the **question and the standard
+of evidence**; a method inside one is a suggestion. `begin.md § 4` now says so.
+
+**A clause that samples state across a synchronous emit is a constraint on timing, not
+behaviour.** S4b's gate said the player "survives two direct hits and dies on the third (`alive`
+reads true, true, false)". A correct implementation of everything else the section asked for
+reads **true, true, true**: `_on_destroyed()` emits `level_reset_requested`, `main.gd` calls
+`tank.respawn()` inside that same call, and `alive` is back before the caller returns — and the
+section separately, rightly, insisted death route into the reset path `death_height` already
+used, so the emit is synchronous *by instruction*. The Doer closed the gap with
+`@export var death_reset_delay = 1.6`, a dial the roadmap never asked for, and said so plainly;
+the Reviewer judged it legitimate on game-feel grounds but recorded that setting it to 0 returns
+the gate to true/true/true with no code change. The gate therefore tested "dies on the third hit
+**and stays dead longer than one call frame**", and only the first half was written down. Write
+such a clause against something the round-trip does not restore — a signal count, a respawn
+counter, `is_alive` sampled inside the handler — or name the delay in the section as a dial, the
+way S4b named the 3:1 toughness ratio. This one is filed here and nowhere in force: roadmap
+sections are authored in planning sessions that no auto-loaded file governs, which is a real gap
+and the honest place to record it.
+
+### Stale worktrees: Grep is clean, Glob is not
+
+`.claude/worktrees/` held two complete copies of the project — `fervent-grothendieck-c534dc`
+and `vibrant-ritchie-d4be54`, 25M each, both predating S0 and both still holding files S2
+deleted. They are listed in `.git/info/exclude:7`, so `git status`, `diff.sh` and every review
+diff are silent about them, and `DevHarness._all_resource_paths()` skips dot-entries, so
+`check_resources PASS {"checked":11}` is the real project's 11 resources. A green sequence says
+nothing about this.
+
+The entry proposed fencing them from search "the way `assets/incoming/.gdignore` fences a pack".
+Measured, that is not the shape of the problem:
+
+    Grep  height_scale              -> terrain/fields/world_field.tres, no worktree copies
+    Glob  **/world_field.tres       -> both worktree copies FIRST, then the real file
+    Glob  **/global_script_class_cache.cfg -> worktree copies of a .gitignored path
+
+`Grep` is ripgrep and honours `.git/info/exclude`, so it was never exposed. `Glob` honours no
+ignore file at all — it returns `.godot/` contents — and sorts by mtime, so a worktree copy
+outranks the file it shadows. **No ignore file can fix Glob**, which leaves removal as the only
+fix and made this a reporting problem rather than a fencing one: `check_guards.py` now names any
+worktree it finds at session start, with `git worktree remove` and the note that the branch
+survives. The removal itself is the user's, not an agent's.
+
+### The launch counter no longer charges for denied commands
+
+The over-count documented above under "Two counters, two failure modes" is **fixed**, and not by
+either route that section was waiting on. A third observation arrived first: an fps run reported
+"14 of 40", a `--harness-eval` batch containing
+`scene.tank.shell_scene.instantiate().hit_mask` was denied by the orphan guard and reported
+"15 of 40" with no `GD:` line and no engine output, and the corrected retry reported "16 of 40".
+The log directory confirms it — `session_20260831_080820_458.log` is followed directly by
+`session_20260831_081258_317.log`, nothing in the four-minute gap. One boot, two increments.
+
+The section said "ordering in `settings.json` cannot fix it — a hook cannot see another hook's
+verdict", and that is true and was the wrong place to stop. A hook cannot see another's verdict,
+but it can ask the same *question*: all three denying `Bash` guards already computed their
+refusal in a pure function (`offenders()`, `offence()`). Each now exposes `would_deny(command)`
+and decides through it, so the answer given to a caller cannot drift from the decision the guard
+makes. `count_godot_launches.py` reads the guard list out of `settings.json` — the same
+anti-drift move as `check_guards.py` — imports each, and skips the increment when any says yes.
+A guard added later needs only a `would_deny`; one without is skipped and the count is unchanged.
+Failure is open in the *expensive* direction on purpose: any error reading settings, importing a
+guard or calling its predicate falls through to counting, because an uncounted launch is a budget
+that lies low.
+
+No `PostToolUse` probe was needed, and `settings.json` was not touched. Verified by seven cases
+in `test_count_godot_launches.py` — the three denial forms, including the exact expression from
+the evidence above, and their four corrected twins — with all 29 counting cases still passing.
+
 ## Open questions for this project
 
 Written down so they are not re-derived from scratch, and so a `/consolidate` can see what is
@@ -390,9 +578,6 @@ still unsettled. None of these is a rule.
   `Resource`) and free themselves, and no text guard can tell the two apart. Nobody has hit the
   Node case here yet. If one is measured, that is an inbox entry with a log path in it, not a
   reason to widen the pattern now.
-- **Whether the counter's known over-count now matters more.** `settings.json` has a fifth
-  `Bash` guard as of this fold, and a denied call still leaves the launch increment written
-  (see above). `budget.sh` reports that same number, so it inherits the skew — one high per
-  denied engine command, failing safe. It has never been observed to exceed one or two in a
-  session; if a run ever plans around a figure that is wrong in the *expensive* direction, that
-  is the evidence that moves the commit to `PostToolUse`.
+- ~~**Whether the counter's known over-count now matters more.**~~ Closed 2026-08-31: the
+  counter now asks each denying `Bash` guard `would_deny(command)` and does not bill a call
+  that will be refused. `PostToolUse` remains unprobed and is no longer needed for this.

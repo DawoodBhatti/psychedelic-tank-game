@@ -52,6 +52,28 @@
 # output is ambiguous between two opposite meanings is worse than no tool,
 # because the reviewer proceeds.
 #
+# It also reports a stale .godot/ after a DELETION
+# -----------------------------------------------
+# CLAUDE.md's trap for a stale cache names its symptom - `Failed loading
+# resource:` against a path no tracked file holds any more. That is the
+# move/rename case. The DELETE case has no symptom at all. Measured 2026-08-30,
+# after four files were removed:
+#
+#   test 1  GD: exit=0 script_errors=0
+#   test 2  check_resources PASS {"checked":9,"failed":[]}
+#
+# green, while `.godot/global_script_class_cache.cfg` still registered
+# `EnemyBody -> res://entities/enemy_body.gd` and `filesystem_cache10` still
+# recorded valley.tres depending on two deleted scenes. Nothing in the test
+# sequence asks the question, and the trap as written points the reader at a
+# failure that does not occur - so it was caught only because one Doer went
+# looking unprompted.
+#
+# It lands here rather than in a new step because reading the diff is already
+# mandatory for the Reviewer, the scan costs no engine launch, and it can only
+# fire when the diff actually deletes something. A warning, not a failure: the
+# diff's own exit status is the caller's answer.
+#
 # Usage - every argument is passed straight to `git diff`:
 #   .claude/scripts/diff.sh                      # everything since HEAD, staged or not
 #   .claude/scripts/diff.sh --stat               # summary only
@@ -87,11 +109,39 @@ if [ -z "$named" ] && git_ rev-parse --verify -q HEAD >/dev/null 2>&1; then
   base=(HEAD)
 fi
 
+# Anything the working tree has deleted since HEAD whose name Godot's cache
+# still carries. Silent when nothing was deleted, which is almost every call.
+warn_stale_cache() {
+  [ -d "$repo/.godot" ] || return 0
+  local deleted stale name
+  deleted="$(git_ diff --name-only --diff-filter=D HEAD 2>/dev/null)"
+  [ -n "$deleted" ] || return 0
+
+  stale=""
+  while IFS= read -r path; do
+    [ -n "$path" ] || continue
+    name="$(basename "$path")"
+    if grep -r -l -F -a -e "$name" "$repo/.godot" >/dev/null 2>&1; then
+      stale="$stale  $path"$'\n'
+    fi
+  done <<< "$deleted"
+
+  [ -n "$stale" ] || return 0
+  {
+    echo "diff.sh: STALE .godot/ CACHE. This diff deletes files whose names the"
+    echo "cache still records, and a stale cache after a DELETE has no symptom -"
+    echo "tests 1 and 2 pass green over it. Rebuild before believing them:"
+    printf '%s' "$stale"
+    echo "    rm -rf .godot && .claude/scripts/gd.sh --headless --import"
+  } >&2
+}
+
 out="$(git_ diff ${base[@]+"${base[@]}"} "$@")"
 rc=$?
 
 if [ -n "$out" ]; then
   printf '%s\n' "$out"
+  warn_stale_cache
   exit $rc
 fi
 
@@ -105,6 +155,7 @@ if [ -n "$status" ]; then
     printf '%s\n' "$status"
     echo "diff.sh: untracked files (??) appear in no diff; \`git add\` them to see one."
   } >&2
+  warn_stale_cache
 else
   echo "diff.sh: no changes - tree and index are clean at $(git_ rev-parse --short HEAD 2>/dev/null || echo '(no commits)')." >&2
 fi

@@ -117,15 +117,23 @@ def offenders(command):
         at += len("instantiate(")
 
 
+def would_deny(command):
+    """Whether this guard refuses `command`, as a question anyone can ask.
+
+    `count_godot_launches.py` asks it before billing a launch: a denied call
+    boots no engine, and a counter that charges for it is one high for the rest
+    of the session. Everything below routes through this, so the answer given
+    there and the decision made here cannot drift apart.
+    """
+    return "--harness-eval" in command and bool(offenders(command))
+
+
 def main():
     command = hooklib.command(hooklib.read_payload())
-    if "--harness-eval" not in command:
+    if not would_deny(command):
         return
 
     bad = offenders(command)
-    if not bad:
-        return
-
     hooklib.deny(
         "Refused: this --harness-eval instantiates a node it cannot free.\n\n"
         "  ...%s\n\n"

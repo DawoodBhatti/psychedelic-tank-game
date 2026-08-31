@@ -146,6 +146,14 @@ TAIL = ("\n\nIssue the command plainly, with no prefix. To set an environment "
         "variable for one command, put it inline: `VAR=value cmd args`.")
 
 
+def would_deny(command):
+    """Whether this guard refuses `command`. See guard_eval_orphan.would_deny -
+    `count_godot_launches.py` reads it so a denied call is not billed a launch
+    it never spent. This is the guard that catches a `cd`-prefixed gd.sh, which
+    is where the over-count was first measured."""
+    return offence(command) is not None
+
+
 def main():
     found = offence(hooklib.command(hooklib.read_payload()))
     if not found:

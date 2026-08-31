@@ -65,6 +65,28 @@ CASES = [
 ]
 
 
+# A launch the OTHER guards on this matcher will refuse costs no engine boot,
+# so it must not be billed. These are the three denying guards, each asked
+# through the same `would_deny` the guard itself decides with.
+REFUSED_CASES = [
+    # (expected refusal, command)
+    (True, 'cd "/c/some/where" && .claude/scripts/gd.sh --headless'),
+    (True, '.claude/scripts/gd.sh --headless -- '
+           '--harness-eval="scene.tank.shell_scene.instantiate().hit_mask"'),
+    (True, '.claude/scripts/gd.sh --headless -- '
+           '--harness-eval=\'scene.find_child("Tank")\''),
+
+    # The corrected forms of all three, which do boot the engine.
+    (False, '.claude/scripts/gd.sh --headless --quit-after 120'),
+    (False, '.claude/scripts/gd.sh --headless -- '
+            '--harness-eval="scene.chunks_total"'),
+    (False, '.claude/scripts/gd.sh --headless -- '
+            '--harness-eval="scene.add_child(scene.tank.shell_scene.instantiate())"'),
+    (False, '.claude/scripts/gd.sh --headless -- '
+            '--harness-eval=\'scene.find_child("Tank", true, false)\''),
+]
+
+
 def run():
     failures = []
     for expected, command in CASES:
@@ -74,7 +96,19 @@ def run():
     for exp, got, cmd in failures:
         print("FAIL expected=%d got=%d  %s" % (exp, got, cmd.replace("\n", "\\n")[:100]))
     print("\n%d/%d passed" % (len(CASES) - len(failures), len(CASES)))
-    return 1 if failures else 0
+
+    refused = []
+    for expected, command in REFUSED_CASES:
+        got = counter.refused_elsewhere(command)
+        if got != expected:
+            refused.append((expected, got, command))
+    for exp, got, cmd in refused:
+        print("FAIL refused_elsewhere expected=%s got=%s  %s"
+              % (exp, got, cmd[:100]))
+    print("%d/%d refusal cases passed"
+          % (len(REFUSED_CASES) - len(refused), len(REFUSED_CASES)))
+
+    return 1 if failures or refused else 0
 
 
 if __name__ == "__main__":

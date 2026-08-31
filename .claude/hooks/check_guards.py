@@ -23,6 +23,27 @@ Four questions that can still go wrong:
      and invisible in review, and "always allow" writes to it. This project has
      already had `Bash(python -)` - arbitrary code from stdin, straight past
      the write guard - acquire standing approval that way.
+  5. Is the SEARCH surface the project, or several copies of it? A leftover
+     agent worktree under .claude/worktrees/ is a whole second copy of every
+     source file, at whatever revision that run branched from. Measured
+     2026-08-30: two of them, both older than S0, both still holding files S2
+     deleted, 25M each. They are listed in .git/info/exclude, so git status,
+     diff.sh and every review diff are silent about them - and the resource
+     walk skips dot-entries, so a green test 2 says nothing either.
+
+     The two search tools do NOT agree about them, which is why this is worth
+     a session-start line rather than a rule. `Grep` is ripgrep and honours
+     the exclude file, so it is clean. `Glob` honours no ignore file at all
+     and returns the stale copies FIRST, because it sorts by mtime and a
+     worktree is newer than the file it shadows:
+
+         Glob **/world_field.tres
+           .claude/worktrees/vibrant-ritchie-d4be54/terrain/fields/...
+           .claude/worktrees/fervent-grothendieck-c534dc/terrain/fields/...
+           terrain/fields/world_field.tres
+
+     No ignore file can fix Glob, so there is nothing to enforce and nothing
+     to fence - only a fact to report, and one command to act on it.
 
 The list of hooks to check is READ OUT OF settings.json, never kept here. It
 used to be a literal tuple of filenames, which is a copy of someone else's
@@ -72,6 +93,16 @@ def local_overrides():
     except Exception:
         return []
     return (perms.get("allow") or []) + (perms.get("deny") or [])
+
+
+def stale_worktrees():
+    """Leftover agent worktrees: whole shadow copies of the project."""
+    folder = os.path.join(REPO, ".claude", "worktrees")
+    try:
+        return sorted(name for name in os.listdir(folder)
+                      if os.path.isdir(os.path.join(folder, name)))
+    except Exception:
+        return []
 
 
 def main():
@@ -125,6 +156,19 @@ def main():
             "anything that deserves standing approval into settings.json, and "
             "empty this file."
             % (len(overrides), ", ".join(repr(o) for o in overrides[:5])))
+
+    worktrees = stale_worktrees()
+    if worktrees:
+        lines.append(
+            "GUARDS: %d leftover worktree(s) under .claude/worktrees/ (%s). "
+            "Each is a full copy of the project at an older revision, and it "
+            "is invisible to git status and to every review diff. `Grep` "
+            "skips them; `Glob` does not, and returns them AHEAD of the real "
+            "file because it sorts by mtime - so a baseline confirmed by Glob "
+            "can be a superseded value with nothing marking it as a copy. "
+            "Remove with `git worktree remove <path>` (the branch survives) "
+            "once the run that made them is over."
+            % (len(worktrees), ", ".join(worktrees)))
 
     print(json.dumps({"hookSpecificOutput": {
         "hookEventName": "SessionStart",

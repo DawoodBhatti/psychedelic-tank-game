@@ -22,11 +22,27 @@ checks that the code does what the *Doer* meant, never that the Doer meant what 
 If it resolves to more than one candidate, ask before spawning. One grep and one question,
 against a wasted Doer turn and a full Reviewer sweep.
 
-**Then check that file is not already modified** — `git status --short <path>`. A change
-already on disk from an earlier session leaves no obtainable "before", so every before/after
-number describes something else. Modified → stop and ask; usually commit or stash first.
-**Run the command** — the session-start `gitStatus` block has been seen naming a file that did
-not exist yet, and stopping on that is a false stop.
+**Then check that file is not already modified** — `git status --short <path>`. **Run the
+command** — the session-start `gitStatus` block has been seen naming a file that did not exist
+yet, and stopping on that is a false stop.
+
+Modified → **capture the baseline off the dirty tree first**, in one batched launch, before
+anything else. That is free, it is the one chance, and it is right whatever the user then
+decides. The "before" is in the WORKING TREE, not at HEAD.
+
+Then stop and ask. The risk is **not** an unobtainable before — it is that `git checkout` can
+no longer separate this task's damage from the uncommitted work already there. That argues for
+committing, and only for committing. **Do not offer `stash`**: where HEAD is a different world
+from the tree, stashing replaces the baseline with one describing something the task is not
+about, and the run is then tuned against it. That has been within one command of happening.
+
+**Where the task rests on a decision a plan marks "locked", check its arithmetic against the
+engine constants before writing the brief.** A locked row is an unverified claim wearing a
+decision's clothes, and it is copied into briefs verbatim sessions later. One that reached a
+brief here required a detail layer under a third of one voxel, and asked for a union that is
+`maxf()` in the height domain — both refutable from numbers already on disk, and both would
+have passed all six tests. `voxel_size`, `chunk_resolution` and the world footprint are the
+usual denominators.
 
 **If the gate is "nothing visibly changes", the before batch is the WHOLE harness surface, not
 the part the task appears to be about.** A "before" has one chance — the first edit destroys it
@@ -56,6 +72,14 @@ permanently — and you are the party least able to predict what a refactor will
    - **Send back** → continue the SAME doer via SendMessage rather than spawning a fresh one.
      It keeps its context, and `doer.md` tells it to address the specific feedback rather
      than restart. A cold agent re-derives everything and often rewrites work that was fine.
+
+     **An agent killed mid-run — usage limit, API error, stall watchdog — is resumed the same
+     way, never respawned cold.** Recover what it already bought from **disk**:
+     `git status --short` and the files it left, whose headers carry their own design
+     contract. Then restate the brief *and what it already measured*, or it re-buys launches
+     already paid for. Its `.output` transcript (100k+ tokens — `offset` near the end, `limit`
+     3–4) answers only what it *concluded* and never wrote down: open it when the artifacts do
+     not, not by default.
    - Then loop to step 2.
 
 ## Budget

@@ -216,8 +216,15 @@ def main():
             ("unknown field prints as a gap",
              (lit, "--columns", "2", "--format", "tsv",
               "--fields", "no_such_key"), 0),
+            ("rows sweep runs",
+             (lit, "--region", "0.0,0.4,1.0,0.6", "--rows", "4"), 0),
+            ("rows without region sweeps frame", (lit, "--rows", "3"), 0),
+            ("rows and columns together are refused",
+             (lit, "--rows", "2", "--columns", "2"), 1),
             ("columns rejects zero", (lit, "--columns", "0"), 1),
             ("columns rejects non-numeric", (lit, "--columns", "many"), 1),
+            ("rows rejects zero", (lit, "--rows", "0"), 1),
+            ("rows rejects non-numeric", (lit, "--rows", "many"), 1),
             ("format rejects unknown", (lit, "--format", "xml"), 1),
             ("fields rejects empty", (lit, "--fields", ""), 1),
         ]
@@ -252,6 +259,26 @@ def main():
                                 "ok" if located else "MISMATCH"))
             if not located:
                 failures.append("sweep did not locate the fire: %s" % warm)
+
+        # The same fire, found on the OTHER axis. It spans y 130-190 of 320, so
+        # over four horizontal strips the middle two cover it and the outer two
+        # do not - the mirror of the case above, and the one a --columns sweep
+        # structurally cannot answer.
+        code, out = run(lit, "--region", "0.4,0.0,0.6,1.0", "--rows", "4",
+                        "--format", "tsv", "--fields", "warm_bright_frac")
+        body = [line for line in out.splitlines()
+                if line and not line.startswith(("#", "REGION:"))]
+        if len(body) != 4:
+            failures.append("row sweep produced %d rows, wanted 4" % len(body))
+            print("%-32s %s" % ("row sweep locates the fire", "MISMATCH"))
+        else:
+            warm = [float(line.split("\t")[2]) for line in body]
+            located = (warm[1] > 0.01 and warm[2] > 0.01
+                       and warm[0] <= 0.01 and warm[3] <= 0.01)
+            print("%-32s %s" % ("row sweep locates the fire",
+                                "ok" if located else "MISMATCH"))
+            if not located:
+                failures.append("row sweep did not locate the fire: %s" % warm)
 
         # --- control mode ----------------------------------------------------
         subject = os.path.join(tmp, "horizon_subject.png")

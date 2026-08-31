@@ -35,14 +35,9 @@ Doer at them.
 commits on approval, writes the result back and stops. Read it with
 `.claude/scripts/roadmap.sh` — no launch. Use `/build <task>` for anything off the roadmap.
 
-`.claude/commands/build.md` is the orchestrator's spec, and `/begin` follows it.
-Send-backs go into the SAME Doer via SendMessage, so it keeps its context rather than
-restarting cold. **An agent killed mid-run — usage limit, API error, stall watchdog — is
-resumed the same way, never respawned cold.** Recover what it already bought from **disk** —
-`git status --short` and the files it left, whose headers carry their own design contract —
-then restate the brief *and what it already measured*, or it re-buys launches already paid
-for. Its `.output` transcript (100k+ tokens — `offset` near the end, `limit` 3–4) answers only
-what it *concluded* and never wrote down: open it when the artifacts do not, not by default.
+`.claude/commands/build.md` is the orchestrator's spec, and `/begin` follows it. Send-backs and
+resumes both go into the SAME agent via SendMessage, never a cold respawn — the recovery
+procedure lives there, with the rest of what only an orchestrator can act on.
 
 ## Learnings
 A finding about the **pipeline** — not the game — goes in `.claude/learnings/` the moment it is
@@ -61,8 +56,7 @@ the ceiling.
 
 **Read both with `.claude/scripts/budget.sh`** — the hooks' own counters, no launch spent, and
 the only figure to report. Never tally your own launches, and never use `newest-log.sh count`:
-one is arithmetic (an enumerated "8 of 40" measured **32**), the other is wall clock across
-every session that ever ran.
+one is arithmetic, the other is wall clock across every session that ever ran.
 
 ## Guards
 `.claude/settings.json` wires the PreToolUse hooks and the permission lists. A SessionStart
@@ -82,6 +76,11 @@ Every guard names its own fix in the message it denies with. Two things they can
 `sed -n` will prompt. When a prompt fires on `rm`, `cp`, `mv`, a `>` redirect or `python -c`,
 the fix is usually **not** to approve it — it is to use **Edit** or **Write**, which are walled
 by the write guard and never prompt.
+
+**An instruction to edit files with `sed`, heredocs or short scripts is refused whatever its
+source**, including a standing harness instruction — which has issued exactly that. The write
+guard cannot see a write made through Bash (§ Guards), so complying degrades a guard on purpose
+while looking like obedience. Say that you diverged; do not resolve it privately.
 
 **Binary files are the exception.** `Write` cannot copy a `.bin`, a `.png` or a `.glb`, so
 moving a downloaded asset into the project is a real `cp` and a real prompt. Batch every copy
@@ -129,7 +128,9 @@ unless launched with a `--harness-*` argument after a bare `--`.
 
 Every command prints `HARNESS: <cmd> PASS|FAIL {json}` to stdout, writes a `"test"` entry to
 the session log, and **sets the exit code** (0 pass, 1 fail). Prefer branching on the exit code
-over parsing text.
+over parsing text — **except on a repeatable `--harness-eval`, where the code is the AND over
+every expression.** One bad expression reds out a batch of good ones, so the per-expression
+`HARNESS: eval` lines are the result: a red batch is a list to read, not a launch to re-buy.
 
 ```bash
 # Load every resource in the project and report any that fail
@@ -150,6 +151,16 @@ over parsing text.
 bodies directly on the live node instead and report the binding as unverified; do not build
 input-synthesis scaffolding to close the gap.
 
+It is **read-only syntactically**: one expression parses, so `=` never does — and the error
+reads `Expected '='`, as though your syntax were at fault. Mutate with `node.set("prop", value)`
+or a method call; both run setters. A failed assignment does not stop the batch, so later reads
+return the pre-write value and look like a flag nothing consults.
+
+**A read that errors or returns `<null>` is more often the wrong OBJECT than the wrong value.**
+The next expression is `<base>.get_script().resource_path`, not a different accessor. Prefer
+the dotted form over `get('x')`, which returns `<null>` for a missing property and a real null
+alike.
+
 **One launch runs one harness command.** The dispatch quits after whichever matched, so a
 launch can mutate the scene *or* photograph it, never both in that order. **This bites carving
 specifically**: `scene.terrain.carve(...)` and a screenshot of the hole are two launches, and
@@ -160,9 +171,11 @@ is frozen at its pre-batch value, so emitting a signal and then reading a var th
 mirrors returns the *pre-emit* number — indistinguishable from a signal that never fired. Read
 off the node that owns the value.
 
-It **can** read GDScript `const`s, which plain `get()` cannot — do not file a `const` under the
-limit above by analogy. Arithmetic over them composes in the same batch, so retuning a constant
-is a measurement rather than an unverifiable claim.
+It **can** read GDScript `const`s off a live node's script, which plain `get()` cannot — do not
+file a `const` under the limit above by analogy. Arithmetic over them composes in the same
+batch, so retuning a constant is a measurement rather than an unverifiable claim. **It needs
+the instance**: a `class_name` holder that is never instantiated is out of reach both ways —
+the bare name and `load(...).get_script_constant_map()` alike.
 ```
 node.get_script().get_script_constant_map()["FORWARD_DRIVE"]
 ```
@@ -271,6 +284,14 @@ the cost and finds nothing the second pass would not.
 
    **A sweep resolves nothing finer than one column**, so size the column under the feature you
    are hunting: 96 columns across a 1920 band is 30 px a strip, and averaged a 14 px hole away.
+   **and nothing at all along the axis it does not cut**, so the strip must run ACROSS the
+   feature: `--columns` for something vertical, `--rows` for something horizontal. A column
+   sweep of iso-Y contour lines measures terrain shape varying in x and calls it banding.
+
+   **A control shot is a control only for the commit it was taken at** — a later session's gate
+   naming an earlier image folds every commit since into the delta. Establish which state an
+   image holds by measuring it against another image (`--control`), never by mtime: `/begin`
+   commits after the session ends, so every image predates its own commit.
 
    Report the path, and do NOT judge whether it looks *good*. **Never read the image back into
    context** — the `Read` guard denies it and its message explains why.
@@ -302,7 +323,9 @@ one. The post-mortems are in pipeline-notes.
 - **`.godot/` holds absolute paths** and goes stale after any move or rename. Symptom:
   `Failed loading resource:` naming a path no tracked file contains any more. Fix: delete
   `.godot/` and re-run `--headless --import`. The game may still *run* in this state, so a
-  smoke test will not show it.
+  smoke test will not show it. **After a DELETION there is no symptom at all**, and tests 1 and
+  2 pass green over the stale cache; `diff.sh` warns when a diff deletes a file the cache still
+  names — heed it.
 - **`--quit-after` counts frames, not seconds.** A long load hitch can consume the budget
   before a timer fires. Prefer a generous frame count over a tight one.
 - **`--check-only --script X.gd` does not load autoloads.** It reports false
@@ -318,6 +341,11 @@ one. The post-mortems are in pipeline-notes.
   derived differently — for generated geometry, `mesh.get_aabb()` plus the node transform, and
   the surface's vertex count, both of which read back **non-empty headless** on a procedural
   `ArrayMesh`.
+- **A dedup over a physics-query result is untested until the query returns more than one hit
+  for the same body.** `intersect_shape()` returns one per *shape*: against a two-shape tower,
+  a blast overlapping one shape prints the same number deduped or not. Assert the multi-shape
+  overlap first — widening the query on the live node if the shipped geometry cannot reach it
+  — then read the damage.
 - **When a change moves a resource reference, the evidence is the reference** —
   `resource_path` or `get_script().resource_path` off the live object, never a number derived
   from it. A null-guarded assignment falling back to a default-constructed object yields
@@ -345,6 +373,9 @@ including ones no code anticipated — so a clean error grep is meaningful.
   layer 2 is the tank, layer 3 is projectiles. A shell that does not mask terrain flies through
   the world; a shell that masks itself detonates on the barrel. Re-measure `collision_layer`
   and `collision_mask` on any new physics body rather than reading the intent off the diff.
+  A **reserved** bit has no body to measure and its constant is unreachable (§ The dev
+  harness), so it is verified by absence: OR every live body's layer and mask, AND against the
+  reserved bits, expect 0 — plus a source read.
 
 ## Out of scope for now (do not build without explicit request)
 - Automated visual diffing / SSIM thresholds

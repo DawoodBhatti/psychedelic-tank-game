@@ -52,9 +52,21 @@ answered in shell.
 
 `--region` is now REPEATABLE and takes an optional `:label`, `--columns N`
 slices each region into N vertical strips left to right (labelled `c00`..),
+`--rows N` slices it into N horizontal strips top to bottom (labelled `r00`..),
 `--fields` narrows the output to the keys named, and `--format tsv` prints one
 row per region instead of one JSON line per region. Every `--expect` is applied
 to EVERY region, so one threshold can be swept across a band.
+
+THE STRIP MUST RUN ACROSS THE FEATURE, which is why there are two axes. A sweep
+resolves nothing along the axis it does not cut: each strip is an average over
+its whole length. Elevation contours are iso-Y lines, and a 30-column sweep of
+them averaged 498 px of height per strip - it reported a periodicity that was
+terrain shape varying in x, and would have appeared on a control with no
+contours in it at all. The same frame cut into 4 px horizontal strips showed the
+line structure: troughs at `delta.luma_mean` -0.7 / +0.4 against peaks at +28.8,
+period 29 px. Both sweeps "showed banding"; only one measured it. Horizontal
+feature -> `--rows`; vertical feature -> `--columns`. The two are mutually
+exclusive, because a grid is not a sweep.
 
 WHY THESE EXIST, since they are otherwise just conveniences. Without them the
 recurring shape was a shell `for` loop calling this script once per strip,
@@ -395,7 +407,7 @@ OPS = {
 
 USAGE = ("usage: check_render.py <image.png> [--control control.png] "
          "[--region x0,y0,x1,y1[:label]]... "
-         "[--columns N] [--fields KEY,KEY,...] [--format json|tsv] "
+         "[--columns N | --rows N] [--fields KEY,KEY,...] [--format json|tsv] "
          "[--expect KEY OP VALUE]...")
 
 # Fields a delta would describe but not measure: the frame's own dimensions,
@@ -445,6 +457,26 @@ def _split_columns(box, count, name):
     return strips
 
 
+def _split_rows(box, count, name):
+    """Slice one box into `count` horizontal strips, top to bottom.
+
+    The twin of _split_columns, and it exists because a sweep resolves nothing
+    along the axis it does not cut - so a horizontally-banded feature measured
+    in vertical strips reports the scene's variation in x and calls it the
+    feature. Same last-strip rule: the final one takes the parent's exact
+    bottom edge rather than an accumulated one.
+    """
+    x0, y0, x1, y1 = box
+    span = (y1 - y0) / count
+    strips = []
+    for i in range(count):
+        top = y0 + span * i
+        bottom = y1 if i == count - 1 else y0 + span * (i + 1)
+        strips.append(([x0, top, x1, bottom],
+                       "%s.r%02d" % (name, i) if name else "r%02d" % i))
+    return strips
+
+
 def _delta(subject, control):
     """Subject minus control, for every numeric leaf, keeping the shape.
 
@@ -468,12 +500,13 @@ def _delta(subject, control):
 
 
 def _parse_args(argv):
-    """Return (path, control, [(box, label), ...], expects, fields, fmt, columns)."""
+    """Return (path, control, [(box, label), ...], expects, fields, fmt,
+    columns, rows)."""
     if len(argv) < 2:
         raise ValueError(USAGE)
 
     path, regions, expects = argv[1], [], []
-    fields, fmt, columns, control = None, "json", None, None
+    fields, fmt, columns, rows, control = None, "json", None, None, None
     i = 2
     while i < len(argv):
         if argv[i] == "--control":
@@ -496,6 +529,17 @@ def _parse_args(argv):
                                  % argv[i + 1])
             if columns < 1:
                 raise ValueError("--columns needs a count of 1 or more")
+            i += 2
+        elif argv[i] == "--rows":
+            if i + 1 >= len(argv):
+                raise ValueError("--rows needs a count")
+            try:
+                rows = int(argv[i + 1])
+            except ValueError:
+                raise ValueError("--rows needs a whole number, got %r"
+                                 % argv[i + 1])
+            if rows < 1:
+                raise ValueError("--rows needs a count of 1 or more")
             i += 2
         elif argv[i] == "--fields":
             if i + 1 >= len(argv):
@@ -520,7 +564,13 @@ def _parse_args(argv):
             i += 4
         else:
             raise ValueError("unknown argument %r. %s" % (argv[i], USAGE))
-    return path, control, regions, expects, fields, fmt, columns
+    if columns and rows:
+        raise ValueError(
+            "use --columns or --rows, not both: a sweep runs ALONG one axis "
+            "and resolves nothing across it, so the axis is the question "
+            "being asked. Two of them is a grid, and a grid of N*M boxes is "
+            "not a sweep of either.")
+    return path, control, regions, expects, fields, fmt, columns, rows
 
 
 def _lookup(measured, key):
@@ -599,20 +649,22 @@ def _load(path):
 
 def main(argv):
     try:
-        path, control, regions, expects, fields, fmt, columns = _parse_args(argv)
+        (path, control, regions, expects,
+         fields, fmt, columns, rows) = _parse_args(argv)
     except ValueError as exc:
         print("RENDER: FAIL " + json.dumps({"error": str(exc)}))
         return 1
 
-    # --columns slices whatever was asked for; with no --region that is the
-    # whole frame. Either way the result IS a set of regions, so the
+    # --columns/--rows slice whatever was asked for; with no --region that is
+    # the whole frame. Either way the result IS a set of regions, so the
     # whole-frame render verdict below stops applying - a single strip of a
     # real frame is legitimately flat, exactly as a tight crop is.
-    if columns:
+    if columns or rows:
+        cut, count = (_split_columns, columns) if columns else (_split_rows, rows)
         source = regions or [([0.0, 0.0, 1.0, 1.0], None)]
         regions = []
         for box, name in source:
-            regions.extend(_split_columns(box, columns, name))
+            regions.extend(cut(box, count, name))
 
     tag = "REGION" if regions else "RENDER"
 

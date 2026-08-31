@@ -99,15 +99,19 @@ def offenders(command):
     return found
 
 
+def would_deny(command):
+    """Whether this guard refuses `command`. See guard_eval_orphan.would_deny -
+    `count_godot_launches.py` reads it so a denied call is not billed a launch
+    it never spent."""
+    return "--harness-eval" in command and bool(offenders(command))
+
+
 def main():
     command = hooklib.command(hooklib.read_payload())
-    if "--harness-eval" not in command:
+    if not would_deny(command):
         return
 
     bad = offenders(command)
-    if not bad:
-        return
-
     hooklib.deny(
         "Refused: this --harness-eval cannot find anything, whatever is in "
         "the scene.\n\n  %s\n\n"

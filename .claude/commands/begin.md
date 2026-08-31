@@ -49,6 +49,12 @@ first spawn**. A session killed at the wall then leaves a trace instead of looki
 
 Use `Edit`, not a shell redirect — the write guard cannot see writes made through Bash.
 
+**Say in both briefs that `docs/roadmap.md` is already dirty, that the `status:` line is yours,
+and that it is not theirs to touch.** It sits in the working tree for the whole run and shows
+up in `diff.sh`, so without this the Reviewer is holding an unexplained out-of-scope edit to
+the very file defining the task — which is exactly the shape it should be suspicious of. It
+has been harmless once only because the Doer volunteered the explanation unprompted.
+
 ## 4. Run the cycle
 
 Follow `.claude/commands/build.md` from "Before the first spawn" through to its Learnings
@@ -60,6 +66,12 @@ Two things the roadmap adds to the brief:
 - **The gate is not negotiable and not paraphrasable.** Hand it over verbatim. A gate reworded
   by the orchestrator is the failure `build.md` opens with — the tests check that the code does
   what the *Doer* meant, never that the Doer meant what the *roadmap* did.
+- **Its standard binds; a method inside it does not.** A gate that names the experiment as well
+  as the question can name one that cannot work — gates are written before the code, by someone
+  who has not shot the frame. Say in the brief that a prescribed *method* may be substituted
+  with a better one, stated and justified in the report, while the *standard of evidence* may
+  not be. The danger is not a stuck Doer; it is a literal one reporting a measurement that
+  discriminates nothing, which passes every test.
 - **Where the section says "do not do X", carry that across.** Those lines are there because X
   is the plausible wrong reading, and it usually passes every test.
 

@@ -46,9 +46,34 @@ here, and the count stays honest without this file having to model anything.
 Known undercount, accepted: a `for` loop that launches the engine once per file
 counts as one occurrence, not one per iteration. Detecting that would mean
 evaluating the loop. The counter is a brake, not an accountant.
+
+A denied command boots nothing, so it is not billed
+---------------------------------------------------
+Four other PreToolUse hooks sit on the same `Bash` matcher, and three of them
+can DENY. A hook cannot see another hook's verdict, and the increment here was
+already written by the time the deny won - so every refused `gd.sh` call left
+the counter one high, permanently, and silently: the denial message said nothing
+about it and `budget.sh` reads this same number. Measured three times, most
+recently on 2026-08-31, where one engine boot moved the count by two.
+
+The fix is not ordering (which cannot work) and not a PostToolUse move (which
+needs an event nobody here has confirmed fires). Each denying guard now answers
+`would_deny(command)` as a plain function, and this hook asks them the same
+question they are about to answer themselves. It reads the guard list out of
+settings.json rather than keeping its own copy, for the reason check_guards.py
+does: a list of things to check that can drift from the real one is a check that
+passes while the thing it checks is broken. A guard added later needs only a
+`would_deny`; one that lacks it is skipped, and the count stays as it was.
+
+Failure is open in the EXPENSIVE direction on purpose: any error reading the
+settings, importing a guard or calling its predicate falls through to counting.
+An uncounted launch is a budget that lies low, which is the failure this whole
+file exists to prevent.
 """
+import json
 import os
 import re
+import sys
 
 import hooklib
 
@@ -83,11 +108,53 @@ def count_launches(command):
     return sum(1 for _ in pattern.finditer(command))
 
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+SETTINGS = os.path.join(HERE, "..", "settings.json")
+DISPATCH = re.compile(r"run\.sh\s+([A-Za-z_]\w*)")
+
+
+def bash_guards():
+    """Every hook settings.json wires onto a matcher that includes `Bash`."""
+    with open(SETTINGS, encoding="utf-8") as handle:
+        matchers = (json.load(handle).get("hooks") or {}).get("PreToolUse") or []
+
+    names = []
+    for matcher in matchers:
+        if "Bash" not in str(matcher.get("matcher", "")):
+            continue
+        for hook in matcher.get("hooks") or []:
+            found = DISPATCH.search(str(hook.get("command", "")))
+            if found and found.group(1) != "count_godot_launches":
+                names.append(found.group(1))
+    return names
+
+
+def refused_elsewhere(command):
+    """Will another guard on this matcher deny this command outright?
+
+    Asked before the counter commits, because a denied call never reaches the
+    engine. Any failure answers False, so an unanswerable question costs a
+    launch rather than hiding one.
+    """
+    try:
+        if HERE not in sys.path:
+            sys.path.insert(0, HERE)
+        for name in bash_guards():
+            guard = __import__(name)
+            verdict = getattr(guard, "would_deny", None)
+            if verdict is not None and verdict(command):
+                return True
+    except Exception:
+        return False
+    return False
+
+
 def main():
     payload = hooklib.read_payload()
 
-    launches = count_launches(hooklib.command(payload))
-    if launches == 0:
+    command = hooklib.command(payload)
+    launches = count_launches(command)
+    if launches == 0 or refused_elsewhere(command):
         return
 
     counter = hooklib.Counter("godot-launches", payload.get("session_id"))
