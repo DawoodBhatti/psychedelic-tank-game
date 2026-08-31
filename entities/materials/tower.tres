@@ -1,0 +1,17 @@
+[gd_resource type="ShaderMaterial" load_steps=2 format=3]
+
+[ext_resource type="Shader" path="res://entities/shaders/tower.gdshader" id="1_tower"]
+
+[resource]
+render_priority = 0
+shader = ExtResource("1_tower")
+shader_parameter/base_color = Color(0.05, 0.06, 0.1, 1)
+shader_parameter/edge_color = Color(0, 0.85, 1, 1)
+shader_parameter/crack_color = Color(1, 0.42, 0.1, 1)
+shader_parameter/ruin_color = Color(0.1, 0.03, 0.02, 1)
+shader_parameter/grid_scale = 2.0
+shader_parameter/line_width = 0.05
+shader_parameter/emission_strength = 1.5
+shader_parameter/rim_strength = 0.7
+shader_parameter/crack_strength = 7.0
+shader_parameter/crack_scale = 0.42

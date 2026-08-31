@@ -503,11 +503,75 @@ it — it may not be.
 ---
 
 ## S4 — Destructible towers
-- status: todo
+- status: done
 - depends: S3
-- gate: five shells destroy one tower and four do not, driven through the harness on the live
-  node; the crack parameter moves at the authored thresholds; `collision_layer` and
-  `collision_mask` re-measured off every live tower body.
+- landed: 2026-08-31, Reviewer-verified. Six towers on the glen, cracking in five stages and
+  dying on the fifth hit. **Both halves of the gate were driven independently by the Reviewer**,
+  not taken on the Doer's report: `apply_damage(20.0, 0, null)` on the live node gives `health`
+  100 → 80 → 60 → 40 → **20** with `is_alive` **true** and `towers_alive` **6** unmoved, and the
+  fifth gives `health` **0.0**, `is_alive` **false**, `towers_alive` **5**, `towers_total` 6,
+  `damage_absorbed` 100.0. A sixth hit is inert. **Crack stages 0.2 / 0.4 / 0.6 / 0.8 / 1.0**,
+  one per hit.
+  **The roadmap's own prescribed formula was wrong and the code deviates from it on purpose.**
+  `floor((1.0 - health_fraction()) * hits_to_kill)` evaluates to **0.0** on the first hit —
+  80.0/100.0 is the next double *above* 0.8, so the product is 0.9999999999999998 — meaning a
+  shell would land, health would move, and the tower would not visibly change. `Tower.STAGE_EPSILON`
+  (1e-4) guards it. Reviewer probed the false-positive window: `_stage_for(0.8001)` still reads
+  stage **0**, so the guard cannot round an unfinished stage up by any margin a player produces.
+  **Five hits is derived, not written twice.** `Shell.NOMINAL_DAMAGE` **20.0**, `max_health`
+  **100.0**, `hits_to_kill()` **5**, and the digit 5 appears in `tower.gd` only in comments.
+  Proved by retuning at runtime: `max_health` → 60.0 gives `hits_to_kill()` **3** and a stage of
+  0.3333 per hit. The arithmetic is exact because the shell fires `damage_type` **0** and
+  `resistance_for(0)` is **1.0** (`armour` 0.0) — index 1 carries 1.25 and is inert today, so an
+  `EXPLOSIVE` round would kill in four. `profile.resource_path` reads
+  `res://entities/profiles/tower.tres` off the live node, so the authored `.tres` genuinely
+  resolves rather than matching script defaults.
+  **Collision, re-measured off every live body.** All six towers `collision_layer` **32**
+  (`STRUCTURES` = `1 << 5`), `collision_mask` **0**. Shell `hit_mask` **33** (= `TERRAIN |
+  STRUCTURES`), read off a shell fired into the tree rather than an orphan instance. Tank
+  `collision_layer` **2**, `collision_mask` **41** (= `TERRAIN | ENEMIES | STRUCTURES`).
+  **`ENEMIES` stays `1 << 3` under its own name**, and `PLAYER_SHELLS` / `ENEMY_SHELLS` are
+  still referenced nowhere but comments. `tower.tscn` carries no layer line — the script is the
+  single assignment point.
+  **Placement**, post-S3 field, 400 candidates, seed 20260826: slope p25 **4.912°** p50
+  **13.488°** p75 **18.229°** max **49.094°**; openness min **0.563** p25 **0.641** p50
+  **0.719** p75 **0.844** max **1.0**; height p25 **−93.190** p50 **−40.113** p75 **74.361**.
+  Authored bounds slope **0–20°**, elevation percentile **0.55–1.0**, openness **0.72–1.0**,
+  `separation` **110.0** (pool pitch 100.5 × 99.9). `entities_spawned` **6**, `spawn_failures`
+  **0**, `min_spawn_clearance` **28.018** (a margin, not a gap), `min_ground_clearance`
+  **0.59999812899376** against an authored 0.6. Max |x| 975.98 and |z| 993.99, inside the
+  collider footprint 1011/1005 and nowhere near the clipmap's ±2048 draw extent.
+  **Yield is not the same as success, and the margin was tuned on that.** The Doer's first
+  openness bound of 0.78 also placed 6 of 6 with `spawn_failures` 0 — but the walk examined
+  **392 of 400** candidates to do it, i.e. ~7 satisfying points with 1 lost to separation. At
+  **0.72** the walk fills after **110** candidates (~22 satisfying points; rejections slope 17,
+  elevation 54, openness 33, overlap 0). `spawn_failures` alone cannot tell those two apart —
+  both are zero — so a later session widening this rule should read the rejection tally, not the
+  failure count.
+  **Tests** 1 `script_errors=0`; 2 `check_resources PASS {"checked":15,"failed":[]}`; 3 clean —
+  **errors 0, warnings 0**; 4 **fps min 119.0 avg 119.9 max 120.0** over 10 samples against a
+  floor of 45; 5 **load 2.206 s**; 6 pass, closed with a control shot rather than a guessed
+  threshold — subject vs a 180°-reversed pose from the identical camera point, tower box
+  `delta.hue_frac.cyan` **+0.6178** and `delta.luma_mean` **−14.0**, against two empty side boxes
+  at cyan 0.0000/0.0049 and `delta.luma_mean` +69.0/+84.7. Both channels move in the same three
+  columns of a 20-column sweep and nowhere else, matching the pose's predicted footprint
+  `x 0.394–0.606`. Images `.claude/images/s4_tower_subject.png` / `s4_tower_control.png`.
+  **Also landed, outside the literal brief and approved as in-scope:** `tank.gd` masks
+  `STRUCTURES`, without which towers are scenery the tank drives through while shells still
+  crack them — the identical failure `CollisionLayers.gd`'s header already records for
+  `ENEMIES`. And a shared `Damageable.of()` static now backs both the shell's hit lookup and
+  `Spawner.live_damageable_count()`, replacing the Spawner's private copy; the Spawner's names
+  stay general for S4c.
+  **Not verified, and named rather than implied.** No test fires a shell and watches health
+  drop — a shot launch cannot mutate and no frame runs inside an eval batch, so the shell → tower
+  path is verified component-wise (mask 33 covers layer 32, `Damageable.of` returns the direct
+  child, `_detonate` has one call site passing `hit.get("collider")`) rather than end to end.
+  Nothing drove into a tower, so the tank/tower pairing is verified as bits, not as a stop.
+  `set_instance_shader_parameter` reaching the GPU is not read back, deliberately. **S4c meets
+  the end-to-end gap again** — plan for it there.
+  Noted for later, non-blocking: the tank's `SpringArm3D` and ground `RayCast3D` keep
+  `collision_mask = 1` in `tank.tscn`, so the chase camera will pass through a tower. Correct for
+  the ground ray, worth a thought for the camera only if it becomes visible in play.
 
 **What is being built:** a few simple towers scattered on the glen that visibly crack as they
 take tank shell hits and die on the fifth.
@@ -642,8 +706,12 @@ and `respawn()` — a tank that can already *die* by falling, with no health at 
 `Damageable` with `entities/profiles/player_tank.tres`, and route death into the reset path
 that `death_height` already uses rather than inventing a second one.
 
-**Three hits means `max_health = 3 × Shell.damage` derived in one place**, the way S4 derives
-the tower's five. Author `armour = 0.0` and `resistance = (1, 1, 1)` on the player profile so
+**Three hits means `max_health = 3 × Shell.NOMINAL_DAMAGE` derived in one place**, the way S4
+derives the tower's five. That const is the name S4 landed (`tank/shell.gd`), and it is readable
+from the harness via `get_script().get_script_constant_map()`, which is how the arithmetic gets
+checked in one eval. Note S4's finding while authoring the profile: the per-hit number is exact
+only because the shell fires `damage_type` **0** and `resistance_for(0)` is **1.0** — author the
+player's resistance index 0 at 1.0 or the clean true/true/false collapses. Author `armour = 0.0` and `resistance = (1, 1, 1)` on the player profile so
 the arithmetic is exact and the gate is a clean true/true/false — otherwise `min_damage_fraction`
 and armour make the third hit a coin flip.
 
@@ -672,11 +740,12 @@ exists to prevent; the level is the thing that knows both parties.
 
 Exercise it here against a tower kill. S4c changes nothing about this path.
 
-**Watch for:** `shell.gd:29-40` carries a long comment explaining that `hit_mask` is terrain-only
-and that adding enemies is **"session E's change"**. Session E was in `docs/foundation-plan.md`
-and **S2 deleted it** — the comment now points at a session that does not exist. S4 widens that
-mask and this session and S4c widen it again; whoever touches it first should fix the comment
-rather than leave three sessions' worth of stale provenance in a load-bearing file.
+**Watch for:** ~~`shell.gd:29-40`'s "session E's change" comment~~ — **fixed by S4**, which
+widened `hit_mask` to `TERRAIN | STRUCTURES` and rewrote that provenance. What survives from it
+is the rule S4 had to satisfy to widen the mask at all, and it binds this session too: masking a
+bit the shell cannot damage buys a detonation that visibly connects and takes zero hit points
+off, which is exactly what `DamageProfile.min_damage_fraction` exists to prevent one layer up.
+`ENEMIES` is still absent from the mask on those grounds, and goes in with S4c.
 
 ---
 
@@ -742,10 +811,19 @@ gap is the reason the number is 3 and not 1.1.
 `armour = 0.0`. Derived from the shell's number in one place, like S4's tower and S4b's player.
 
 **6. Harness surface.** `enemies_alive` / `enemies_total` on `main.gd` as computed getters off
-the live nodes. **These names already existed** — S2 zeroed them against an empty manifest and
-they still read off `Spawner.live_damageable_count()`. Reuse rather than add, and note that S4
-is separately told to rename them to `towers_*`; whichever session lands second reconciles that,
-and the answer is probably both, counted separately.
+the live nodes.
+
+*Revised 2026-08-31, after S4 landed.* **These names no longer exist** — S4 renamed them to
+`towers_alive` / `towers_total`, so this session genuinely adds a pair rather than reusing one.
+Both pairs are wanted, **counted separately**: a session that folds enemies into `towers_*` makes
+"five hits kill a tower" untestable the moment an enemy dies.
+
+`Spawner.live_damageable_count()` was deliberately left general by S4 and still counts every
+placed `Damageable` regardless of kind, so it **cannot** answer either question once both exist
+on the glen. Give it a way to count one kind — the type of the placed node, or the group it was
+spawned into — rather than adding a second parallel counter beside it. S4 also moved the lookup
+it uses to a shared `Damageable.of()` static on `entities/damageable.gd`; use that, do not write
+a third copy.
 
 **The constraint that shapes the whole design, and it is narrower than it looks.**
 The harness *can* mutate the live tree — `node.set("prop", v)` and any method call parse and run

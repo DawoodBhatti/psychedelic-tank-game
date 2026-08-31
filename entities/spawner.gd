@@ -386,7 +386,7 @@ func live_damageable_count() -> int:
 	for node in _placed_nodes:
 		if not is_instance_valid(node):
 			continue
-		var d := _find_damageable(node)
+		var d := Damageable.of(node)
 		if d != null and d.is_alive:
 			live += 1
 	return live
@@ -396,16 +396,9 @@ func live_damageable_count() -> int:
 func damageable_count() -> int:
 	var total := 0
 	for node in _placed_nodes:
-		if is_instance_valid(node) and _find_damageable(node) != null:
+		if is_instance_valid(node) and Damageable.of(node) != null:
 			total += 1
 	return total
-
-
-func _find_damageable(node: Node) -> Damageable:
-	for child in node.get_children():
-		if child is Damageable:
-			return child
-	return null
 
 
 # Distance in the XZ plane. Separation is a footprint question: two things a

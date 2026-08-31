@@ -161,11 +161,24 @@ var min_ground_clearance: float:
 ## Placed entities carrying a Damageable that has not been destroyed, and the
 ## number that carry one at all. Counted off the live nodes, so a kill shows up
 ## here without anything having to remember it happened.
-var enemies_alive: int:
+##
+## RENAMED FROM enemies_alive / enemies_total IN S4, and it is a rename rather
+## than a second pair: the only thing the manifest scatters now is towers, and a
+## counter called "enemies" that counts scenery is a name that lies. Nothing is
+## freed on death - Tower keeps its wreck standing - so `towers_alive` moves off
+## `Damageable.is_alive` and `towers_total` does not move at all. Read the two
+## together: 6 of 6 and 0 of 0 both report "nothing has died".
+##
+## THE CONCEPT WAS NOT DELETED, ONLY THIS USE OF IT. S4c puts enemy tanks back
+## on the ENEMIES layer and will want its own count, which is why
+## `Spawner.live_damageable_count()` and `damageable_count()` keep their general
+## names and their general behaviour - they count any Damageable, and splitting
+## them by category is that session's problem, not this one's.
+var towers_alive: int:
 	get:
 		return spawner.live_damageable_count() if spawner != null else 0
 
-var enemies_total: int:
+var towers_total: int:
 	get:
 		return spawner.damageable_count() if spawner != null else 0
 

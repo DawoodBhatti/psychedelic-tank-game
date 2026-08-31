@@ -88,6 +88,22 @@ func _ready() -> void:
 			% ("null" if get_parent() == null else get_parent().get_class()))
 
 
+## The Damageable hanging off `node`, or null. THE ONE DEFINITION OF WHERE THIS
+## COMPONENT LIVES RELATIVE TO ITS ENTITY, so a weapon that has just raycast a
+## body and a spawner counting survivors agree about what "has hit points" means.
+##
+## Direct children only, deliberately. A recursive search would find the
+## Damageable of something PARENTED to this entity - a turret riding a hull, a
+## crate on a truck - and report the passenger's hit points as the vehicle's.
+static func of(node: Node) -> Damageable:
+	if node == null:
+		return null
+	for child in node.get_children():
+		if child is Damageable:
+			return child
+	return null
+
+
 ## The entity this component speaks for. What the bus signals carry.
 func entity() -> Node3D:
 	return _entity

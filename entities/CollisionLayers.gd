@@ -61,3 +61,19 @@ const ENEMIES := 1 << 3
 
 ## Editor layer 5. RESERVED AND UNUSED, for the same reason as PLAYER_SHELLS.
 const ENEMY_SHELLS := 1 << 4
+
+## Editor layer 6. Destructible scenery - towers, and whatever else stands on the
+## glen and can be shot down.
+##
+## A BIT OF ITS OWN, NOT A RENAMED `ENEMIES`. The obvious economy - nothing
+## fights back any more, so reuse bit 3 - is wrong as soon as something does.
+## Towers and enemy tanks want the SAME treatment in exactly one place, the
+## shell's hit_mask, and different treatment everywhere else: an aggro query
+## looks for a target on ENEMIES and must not find a tower, while the tank's
+## chassis has to be stopped by both. One bit cannot say both things, and
+## renumbering after the fact is the expensive version of this decision - which
+## is the same argument PLAYER_SHELLS and ENEMY_SHELLS are held empty for.
+##
+## Bit 5 rather than 3 or 4: bits 3 and 4 are spoken for above, and bits 5 and up
+## are free.
+const STRUCTURES := 1 << 5

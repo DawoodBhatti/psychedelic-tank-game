@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="LevelDef" load_steps=7 format=3]
+[gd_resource type="Resource" script_class="LevelDef" load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://levels/LevelDef.gd" id="1_def"]
 [ext_resource type="Resource" path="res://terrain/fields/world_field.tres" id="2_field"]
@@ -6,6 +6,28 @@
 [ext_resource type="Environment" path="res://environment/neon_environment.tres" id="4_env"]
 [ext_resource type="Script" path="res://entities/PlacementRule.gd" id="5_rule"]
 [ext_resource type="Script" path="res://entities/SpawnGroup.gd" id="6_group"]
+[ext_resource type="PackedScene" path="res://entities/tower.tscn" id="7_tower"]
+
+[sub_resource type="Resource" id="Rule_tower"]
+script = ExtResource("5_rule")
+min_slope_degrees = 0.0
+max_slope_degrees = 20.0
+min_elevation_percentile = 0.55
+max_elevation_percentile = 1.0
+min_openness = 0.72
+max_openness = 1.0
+min_edge_fraction = 0.0
+max_edge_fraction = 1.0
+
+[sub_resource type="Resource" id="Group_tower"]
+script = ExtResource("6_group")
+id = "tower"
+scene = ExtResource("7_tower")
+count = 6
+placement = SubResource("Rule_tower")
+ground_clearance = 0.6
+separation = 110.0
+random_yaw = true
 
 [resource]
 script = ExtResource("1_def")
@@ -14,6 +36,6 @@ surface_material = ExtResource("3_material")
 environment = ExtResource("4_env")
 spawn_clearance = 4.0
 trip_fade = 1.2
-spawn_manifest = Array[SpawnGroup]([])
+spawn_manifest = Array[SpawnGroup]([SubResource("Group_tower")])
 spawn_seed = 20260826
 player_keepout = 26.0

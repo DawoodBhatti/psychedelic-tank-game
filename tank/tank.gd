@@ -142,7 +142,14 @@ func _ready() -> void:
 	#
 	# ENEMIES was added when guardians got a layer of their own. Without it the
 	# tank drives straight through a guardian hull - which is not a crash, not a
-	# warning and not visible in any headless test.
+	# warning and not visible in any headless test. It stays through S2's cull of
+	# the guardians: S4c puts enemy tanks back on that bit.
+	#
+	# STRUCTURES joined it in S4 for exactly the same reason and with exactly the
+	# same failure mode. A tower is a StaticBody3D nothing masks, which is
+	# scenery drawn where the tank can drive through it - and the shell would
+	# still detonate on it, so the tower would crack while the hull passed
+	# straight out the other side.
 	#
 	# Shells are still not masked here: they are on the reserved PLAYER_SHELLS
 	# bit, carry no body at all, and must pass through the tank that fired them.
@@ -151,7 +158,8 @@ func _ready() -> void:
 	# the same two values, which meant two places to disagree and this one
 	# silently winning. See CollisionLayers' header.
 	collision_layer = CollisionLayers.PLAYER
-	collision_mask = CollisionLayers.TERRAIN | CollisionLayers.ENEMIES
+	collision_mask = CollisionLayers.TERRAIN | CollisionLayers.ENEMIES \
+		| CollisionLayers.STRUCTURES
 
 
 func _unhandled_input(event: InputEvent) -> void:

@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="DamageProfile" load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://entities/DamageProfile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+max_health = 100.0
+armour = 0.0
+resistance = PackedFloat32Array(1, 1.25, 1)
+min_damage_fraction = 0.1
