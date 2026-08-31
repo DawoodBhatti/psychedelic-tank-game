@@ -48,6 +48,22 @@ offset_bottom = 20.0
 color = Color(0.1, 0.95, 0.75, 1)
 mouse_filter = 2
 
+[node name="HealthFrame" type="ColorRect" parent="Root"]
+layout_mode = 1
+offset_left = 40.0
+offset_top = 176.0
+offset_right = 380.0
+offset_bottom = 196.0
+color = Color(0.06, 0.07, 0.1, 0.75)
+mouse_filter = 2
+
+[node name="HealthFill" type="ColorRect" parent="Root/HealthFrame"]
+layout_mode = 0
+offset_right = 340.0
+offset_bottom = 20.0
+color = Color(0.15, 0.95, 0.45, 1)
+mouse_filter = 2
+
 [node name="Crosshair" type="Control" parent="Root"]
 layout_mode = 1
 anchors_preset = 8

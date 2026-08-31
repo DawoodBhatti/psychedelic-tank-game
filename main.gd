@@ -182,6 +182,25 @@ var towers_total: int:
 	get:
 		return spawner.damageable_count() if spawner != null else 0
 
+## Smallest gap between any world-space health bar and the geometry it hangs
+## over. Positive means every bar clears its entity by that much; zero or below
+## means one is buried inside the thing it describes.
+##
+## THE SAME ARGUMENT AS min_ground_clearance, applied to the other thing this
+## session places: a bar's transform is a claim about where it is until something
+## measures the gap it left, and no test in the sequence asks. A bar sunk into a
+## tower's cap renders, passes the render check and is unreadable in play.
+##
+## INF when there are no bars at all - pair it with towers_total, exactly as
+## min_spawn_clearance is paired with entities_spawned. A getter rather than a
+## var for the reason the block above gives.
+var min_health_bar_clearance: float:
+	get:
+		var worst := INF
+		for bar in _health_bars(self):
+			worst = minf(worst, bar.clearance())
+		return worst
+
 var _explosions: ExplosionDirector
 var _trip_tween: Tween
 
@@ -206,6 +225,7 @@ func _ready() -> void:
 	ui.terrain = terrain
 
 	GameEvents.level_reset_requested.connect(_on_level_reset_requested)
+	GameEvents.entity_destroyed.connect(_on_entity_destroyed)
 
 	# Trip mode is off at load however the material was last saved. A shader
 	# parameter is part of a shared resource on disk, so leaving it wherever it
@@ -240,6 +260,19 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_trip"):
 		set_trip(not trip_active)
+
+
+# Every HealthBar3D anywhere under `node`. Walked rather than asked of the
+# Spawner, because the spawner is not the only thing that can own one - the
+# clearance above should keep answering when S4c hangs a bar on something placed
+# a different way.
+func _health_bars(node: Node) -> Array[HealthBar3D]:
+	var out: Array[HealthBar3D] = []
+	for child in node.get_children():
+		if child is HealthBar3D:
+			out.append(child)
+		out.append_array(_health_bars(child))
+	return out
 
 
 # ------------------------------------------------------------
@@ -308,6 +341,33 @@ func _on_level_reset_requested(reason: String) -> void:
 
 	terrain.reset()
 	tank.respawn()
+
+
+# A kill patches the player up, and THE LEVEL IS WHAT DECIDES THAT.
+#
+# Not the tank: a tank that knows killing heals it has to know what an enemy is,
+# which is the coupling this file's header exists to prevent. Not the tower
+# either - a tower that knows what its own death is worth to the player could not
+# be dropped into a level that does not reward kills without being edited. The
+# level knows both parties and owns the rule; `level.kill_heal` is the number.
+#
+# The bus rather than a per-entity connection, so nothing has to be re-wired when
+# S4c scatters something else killable: entity_destroyed already fires exactly
+# once per death and already carries who died.
+func _on_entity_destroyed(entity: Node3D, _source: Node3D) -> void:
+	# The player's own death is not a kill. Without this the tank heals itself to
+	# full on the frame it is destroyed, which reads as a tank that cannot die.
+	if entity == tank or tank == null or tank.damageable == null:
+		return
+	if level.kill_heal <= 0.0:
+		return
+
+	var restored := tank.damageable.heal(level.kill_heal)
+	GameLogger.write_log("state", "kill_heal", {
+		"entity": entity.name,
+		"restored": snappedf(restored, 0.01),
+		"health": snappedf(tank.damageable.health, 0.01),
+	})
 
 
 # ------------------------------------------------------------

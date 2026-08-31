@@ -1,6 +1,7 @@
-[gd_scene load_steps=10 format=3]
+[gd_scene load_steps=11 format=3]
 
 [ext_resource type="Script" path="res://entities/tower.gd" id="1_tower"]
+[ext_resource type="Script" path="res://entities/health_bar_3d.gd" id="6_healthbar"]
 [ext_resource type="Script" path="res://entities/skin_slot.gd" id="2_skin"]
 [ext_resource type="Script" path="res://entities/damageable.gd" id="3_damageable"]
 [ext_resource type="Resource" path="res://entities/profiles/tower.tres" id="4_profile"]
@@ -45,3 +46,7 @@ mesh = SubResource("Mesh_cap")
 [node name="Damageable" type="Node" parent="."]
 script = ExtResource("3_damageable")
 profile = ExtResource("4_profile")
+
+[node name="HealthBar" type="Node3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 25.5, 0)
+script = ExtResource("6_healthbar")

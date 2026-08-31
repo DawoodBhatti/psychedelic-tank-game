@@ -66,6 +66,21 @@ class_name LevelDef
 ## layout without touching a single rule.
 @export var spawn_seed: int = 20260826
 
+## Hit points the player gets back for every kill. Clamped at his max_health by
+## Damageable.heal(), so a full tank gains nothing from a kill.
+##
+## A LEVEL VALUE, NOT A TANK ONE AND NOT AN ENEMY ONE. A tank that knows killing
+## heals it is the coupling main.gd's header exists to prevent, and a tower that
+## knows what its death is worth to the player is worse - the same tower in a
+## level that does not reward kills would have to be a different scene. The level
+## is the only thing that knows both parties, so the level is where the rule
+## lives and this is the number it reads.
+##
+## 20.0 is one Shell.NOMINAL_DAMAGE - one hit back for one kill, against a tank
+## authored at three hits - which is the same "would the next level want a
+## different value?" test everything else here passes.
+@export var kill_heal: float = 20.0
+
 ## Nothing is scattered within this many world units of the player's spawn.
 ##
 ## A level concern rather than a Spawner setting: how much elbow room the player

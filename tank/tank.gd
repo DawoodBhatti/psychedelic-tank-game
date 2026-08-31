@@ -27,6 +27,15 @@ class_name Tank
 @onready var camera_arm: SpringArm3D = $Turret/CameraArm
 @onready var ground_probe: RayCast3D = $GroundProbe
 
+## Hit points. Its DamageProfile is entities/profiles/player_tank.tres, authored
+## at 3 x Shell.NOMINAL_DAMAGE - see hits_to_kill(), which divides rather than
+## repeating the 3.
+##
+## A CHILD COMPONENT, NOT FIELDS ON THIS SCRIPT, and that is Damageable's whole
+## argument: the tower is a StaticBody3D and this is a CharacterBody3D, and they
+## get identical hit points out of one file and two .tres.
+@onready var damageable: Damageable = $Damageable
+
 # ============================================================
 # Drive
 # ============================================================
@@ -113,6 +122,17 @@ const CAMERA_PITCH_BIAS := -5.0
 ## out of can never strand you.
 @export var death_height: float = -60.0
 
+## Seconds between the hull being destroyed and the level being put back.
+##
+## THE FALL HAS NO DELAY AND THIS ONE DOES, and the difference is what there is
+## to see. Below death_height the tank is under the world and the camera is
+## looking at nothing, so waiting buys the player a second of black; a hull shot
+## out from under him happens where he is looking, and a reset on the same frame
+## as the killing hit reads as a teleport rather than as a death.
+##
+## Both still go out as level_reset_requested - one path, one handler in main.gd.
+@export var death_reset_delay: float = 1.6
+
 ## Turret heading in WORLD space, degrees. See the class comment.
 var turret_yaw: float = 0.0
 
@@ -161,6 +181,11 @@ func _ready() -> void:
 	collision_mask = CollisionLayers.TERRAIN | CollisionLayers.ENEMIES \
 		| CollisionLayers.STRUCTURES
 
+	if damageable == null:
+		push_error("Tank %s: no Damageable child - it cannot be destroyed" % name)
+	else:
+		damageable.destroyed.connect(_on_destroyed)
+
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
@@ -192,6 +217,13 @@ func _physics_process(delta: float) -> void:
 	if alive and global_position.y < death_height:
 		alive = false
 		GameEvents.level_reset_requested.emit("fell")
+		return
+
+	if not alive:
+		# Destroyed, and waiting out death_reset_delay. The wreck keeps its
+		# collision and its transform and simply stops taking orders - without
+		# this it would still drive, still tilt and still reload while dead, and
+		# the only thing saying otherwise would be a flag nothing reads.
 		return
 
 	_drive(delta)
@@ -351,6 +383,49 @@ func reload_fraction() -> float:
 # ------------------------------------------------------------
 # Lifecycle
 # ------------------------------------------------------------
+## Shells needed to destroy this tank, from the authored profile and the shell's
+## reference damage. Read it rather than assuming 3 - it is the same division
+## Tower.hits_to_kill() does, and for the same reason: an exported "3" would be a
+## third copy of a fact that already exists twice, and the copy is the one that
+## goes stale.
+##
+## Zero when there is no profile to divide, so "I could not measure this" fails a
+## gate rather than passing one as a silent 1.
+func hits_to_kill() -> int:
+	if damageable == null or damageable.profile == null:
+		return 0
+	if Shell.NOMINAL_DAMAGE <= 0.0:
+		return 0
+	return int(round(damageable.profile.max_health / Shell.NOMINAL_DAMAGE))
+
+
+# The hull reached zero. This is the SECOND way to die and it goes out through
+# the FIRST one's path: the fall already emits level_reset_requested and main.gd
+# already owns what a reset restores, so there is nothing here but a delay and
+# the same signal.
+#
+# `alive` is dropped on this frame rather than when the timer fires, so the wreck
+# stops driving immediately and anything asking whether the player is up gets the
+# answer the player can see.
+func _on_destroyed(_source: Node3D) -> void:
+	if not alive:
+		return
+	alive = false
+
+	GameLogger.write_log("state", "tank_destroyed", {
+		"shells_fired": shells_fired,
+		"reset_delay": death_reset_delay,
+	})
+
+	# Re-checked when it fires: a manual respawn during the delay puts the tank
+	# back up, and a second reset landing on top of that would throw away a run
+	# the player had already restarted.
+	get_tree().create_timer(death_reset_delay).timeout.connect(
+		func() -> void:
+			if not alive:
+				GameEvents.level_reset_requested.emit("destroyed"))
+
+
 ## Puts the tank back at the start. Called by the level, which also puts the
 ## terrain back - restoring the world is not the tank's business.
 func respawn() -> void:
@@ -363,6 +438,11 @@ func respawn() -> void:
 	reload_remaining = 0.0
 	shells_fired = 0
 	speed = 0.0
+	# Hit points come back with the run. restore() rather than heal(): a heal
+	# cannot revive on purpose (see Damageable), and after a third shell this
+	# tank is destroyed rather than merely hurt.
+	if damageable != null:
+		damageable.restore()
 	alive = true
 	_set_boosting(false)
 	GameEvents.tank_respawned.emit()

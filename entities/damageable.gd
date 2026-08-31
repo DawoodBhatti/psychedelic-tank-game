@@ -57,8 +57,9 @@ signal destroyed(source: Node3D)
 ## defaults reproduces every number a broken resolution would.
 @export var profile: DamageProfile
 
-## Current hit points. Written only by apply_damage(), so reading it back is a
-## check rather than a re-execution of the thing that set it.
+## Current hit points. Written by apply_damage(), heal() and restore() and by
+## nothing else, so reading it back is a check rather than a re-execution of the
+## thing that set it.
 var health: float = 0.0
 
 ## False from the moment health first reaches zero.
@@ -146,6 +147,42 @@ func apply_damage(amount: float, type: int = DamageProfile.Type.KINETIC,
 		GameEvents.entity_destroyed.emit(_entity, source)
 
 	return applied
+
+
+## Puts hit points back, never above max_health, and returns the amount actually
+## restored - so 0.0 says "already full" and a caller can tell a heal that did
+## something from one that did not.
+##
+## `damage_absorbed` IS NOT REDUCED, and that is what the header means by it being
+## independent of `health` "for anything that heals or repairs later". The running
+## total describes what this entity has been through; healing changes what it has
+## left. A repair that rewound the total would make it un-plottable.
+##
+## IT DOES NOT RESURRECT. A destroyed entity stays destroyed: `destroyed` and
+## `entity_destroyed` have already fired exactly once, and nothing on the bus says
+## an entity came back, so a heal that flipped is_alive would put a wreck back on
+## its feet with every listener still believing it dead. Putting something back
+## into play is restore(), which says so in its name.
+func heal(amount: float) -> float:
+	if not is_alive or amount <= 0.0 or profile == null:
+		return 0.0
+
+	var restored := minf(amount, profile.max_health - health)
+	if restored <= 0.0:
+		return 0.0
+
+	health += restored
+	return restored
+
+
+## Puts the entity back to full health and back into play. The RESPAWN path, and
+## deliberately not reachable through heal(): reviving is a decision about a run,
+## and the thing that owns a run is the level.
+##
+## `damage_absorbed` survives this too, for the same reason it survives heal().
+func restore() -> void:
+	health = profile.max_health if profile != null else 0.0
+	is_alive = true
 
 
 ## 0.0 dead, 1.0 untouched. What a health bar reads.

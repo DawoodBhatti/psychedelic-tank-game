@@ -14,6 +14,8 @@ class_name TankUI
 @onready var craters_label: Label = $Root/Readout/Craters
 @onready var reload_bar: ColorRect = $Root/ReloadFrame/ReloadFill
 @onready var reload_frame: ColorRect = $Root/ReloadFrame
+@onready var health_bar: ColorRect = $Root/HealthFrame/HealthFill
+@onready var health_frame: ColorRect = $Root/HealthFrame
 @onready var help_label: RichTextLabel = $Root/Help
 @onready var crosshair: Control = $Root/Crosshair
 
@@ -23,11 +25,30 @@ var tank: Tank
 var terrain: TerrainSurface
 
 var _frame_width: float = 0.0
+var _health_frame_width: float = 0.0
 var _help_timer: Timer
+
+
+## Width in pixels the health fill is drawn at.
+##
+## COMPUTED ON READ, NOT MIRRORED PER FRAME, for the reason main.gd:62 sets out:
+## no frame runs inside a --harness-eval batch, so a var refreshed in _process()
+## reports its PRE-BATCH width to anything that damaged the tank in the same
+## batch - "the bar never moved" about a bar that did. A getter cannot be stale
+## and costs nothing when nobody asks.
+##
+## It is also the value to read INSTEAD of the ColorRect's pixels or its colour:
+## those are what _process() writes from here, so reading them back would be a
+## re-execution rather than a check (CLAUDE.md, Traps). Check it against
+## Damageable.health, which is derived differently.
+var health_bar_width: float:
+	get:
+		return _health_frame_width * player_health_fraction()
 
 
 func _ready() -> void:
 	_frame_width = reload_frame.size.x
+	_health_frame_width = health_frame.size.x
 
 	# The controls stay up for the opening moments and then get out of the way.
 	# Long enough to read, short enough not to sit over the first fight.
@@ -37,6 +58,17 @@ func _ready() -> void:
 	_help_timer.timeout.connect(func() -> void: help_label.visible = false)
 	add_child(_help_timer)
 	_help_timer.start()
+
+
+## The player's health as 0.0-1.0, straight off the component that owns it.
+##
+## 0.0 when there is no tank or no Damageable to ask. An empty bar for a player
+## who cannot be measured, rather than a full one: a HUD that defaults to healthy
+## hides exactly the wiring failure it would be reporting.
+func player_health_fraction() -> float:
+	if tank == null or tank.damageable == null:
+		return 0.0
+	return tank.damageable.health_fraction()
 
 
 func _input(event: InputEvent) -> void:
@@ -60,6 +92,12 @@ func _process(_delta: float) -> void:
 	# The crosshair goes hot the moment the gun is loaded. This is the only
 	# readout the player is actually looking at when it matters.
 	crosshair.modulate = Color(1, 1, 1, 1) if fraction >= 1.0 else Color(1, 1, 1, 0.35)
+
+	# Health, drawn from the getter above rather than recomputed here, so there
+	# is exactly one expression that turns hit points into pixels.
+	var health := player_health_fraction()
+	health_bar.size.x = health_bar_width
+	health_bar.color = Color(0.95, 0.2, 0.15).lerp(Color(0.15, 0.95, 0.45), health)
 
 	# The crater count is only information while the ground can actually be cut.
 	# The clipmap terrain cannot be cut at all and the voxel one has destruction

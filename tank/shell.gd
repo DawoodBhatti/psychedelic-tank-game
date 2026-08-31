@@ -42,6 +42,46 @@ const NOMINAL_DAMAGE := 20.0
 ## fired, and Damageable owns what got through.
 @export var damage: float = NOMINAL_DAMAGE
 
+## Damage the blast does to something standing AT the centre but not struck -
+## before falloff, armour and resistance.
+##
+## A SEPARATE AUTHORED NUMBER, NOT A FRACTION FOLDED INTO THE CURVE. "A near
+## miss does 40% of a hit" is a feel dial, and a dial hidden inside a falloff
+## expression is a dial nobody can find. Derived from NOMINAL_DAMAGE rather than
+## written as 8.0 for the reason that const exists: retune the reference hit and
+## the near miss follows it.
+@export var splash_damage: float = NOMINAL_DAMAGE * 0.4
+
+## What the splash is worth at exactly `blast_radius`, as a fraction of
+## `splash_damage`. The FLOOR of the falloff, not its end: past the radius the
+## curve does not tail off, it stops (see splash_damage_at).
+##
+## A const so the harness can read it and check the falloff arithmetic in one
+## eval, the same way NOMINAL_DAMAGE is read.
+const SPLASH_EDGE_FRACTION := 0.25
+
+## Bodies one blast may damage. Only a ceiling on the physics query - the glen
+## holds six towers and one terrain body, so it is never reached in practice. It
+## exists because intersect_shape() silently truncates rather than reporting that
+## it did.
+const MAX_BLAST_TARGETS := 32
+
+## How far past `blast_radius` still counts as AT the edge.
+##
+## A ROUNDING GUARD, NOT A FEEL DIAL, and it is not decoration - it is the same
+## shape of defect as Tower.STAGE_EPSILON, arriving through Vector3 instead of
+## through a division. Vector3 is 32-bit, so a point built as "the target, plus
+## the radius along one axis" nine hundred units from the origin lands
+## 8.0 +/- 6e-5 away rather than exactly 8.0. Without a guard the SIGN of that
+## rounding decides between the floor and zero: a coin flip dressed up as a
+## falloff, and one that reads as "the blast edge does nothing" half the time it
+## is measured.
+##
+## A millimetre is far below anything the game can resolve and far above the
+## ~1e-4 the arithmetic can be wrong by at world scale, so it cannot let a
+## genuine miss through.
+const EDGE_TOLERANCE := 0.001
+
 ## What the hit is made of, indexing DamageProfile.Type. Solid shot - the crater
 ## is a side effect of a kinetic round arriving, not a separate explosive
 ## payload, and nothing in the project fires EXPLOSIVE yet.
@@ -130,9 +170,7 @@ func _detonate(at: Vector3, normal: Vector3, collider: Object = null) -> void:
 	# It is also why this takes the collider rather than looking one up from the
 	# position: the raycast already knows exactly what was struck, and a second
 	# query against the same point could pick a different body.
-	var target := Damageable.of(collider as Node)
-	if target != null:
-		target.apply_damage(damage, damage_type, self)
+	apply_blast(at, collider as Node)
 
 	# Pull the crater centre slightly INTO the surface along its normal.
 	# Detonating exactly on the surface removes a hemisphere and leaves a
@@ -143,6 +181,113 @@ func _detonate(at: Vector3, normal: Vector3, collider: Object = null) -> void:
 
 	GameEvents.shell_exploded.emit(centre, blast_radius)
 	queue_free()
+
+
+## Everything this shell does to hit points at `at`: the full `damage` to
+## `direct_target`, and the falloff splash to every OTHER damageable body inside
+## `blast_radius`.
+##
+## THE EXCLUSION, NAMED. `direct_target` takes the direct hit and is then SKIPPED
+## by the splash loop - the `if splashed == direct` below is the whole of it.
+## Without that line a shell landing dead-on a tower is caught by its own blast
+## and pays twice, which reads as "direct hits do double damage" and passes every
+## test in the sequence, because nothing in the sequence knows what one hit is
+## supposed to cost. Pass null for a blast that struck no body (a shell into the
+## dirt beside a tower); then nothing is excluded and everything in range takes
+## splash.
+##
+## PUBLIC, AND FOR THE SAME REASON Tank.fire() IS. A shell only reaches _detonate
+## through _physics_process, and no frame runs inside a --harness-eval batch, so
+## the branch body has to be callable directly or the damage numbers cannot be
+## measured on live nodes at all.
+##
+## The returned dictionary is a CONVENIENCE, not evidence: it is computed by this
+## function, so reading it back proves nothing about hit points. Read
+## `Damageable.health` on the targets.
+func apply_blast(at: Vector3, direct_target: Node = null) -> Dictionary:
+	var report := {"direct": 0.0, "splash_targets": 0, "splash_total": 0.0}
+
+	var direct := Damageable.of(direct_target)
+	if direct != null:
+		report["direct"] = direct.apply_damage(damage, damage_type, self)
+
+	for splashed in _damageables_in_blast(at):
+		if splashed == direct:
+			continue
+		var amount := splash_damage_at(at.distance_to(splashed.entity().global_position))
+		if amount <= 0.0:
+			continue
+		var applied := splashed.apply_damage(amount, damage_type, self)
+		if applied > 0.0:
+			report["splash_targets"] += 1
+			report["splash_total"] += applied
+
+	return report
+
+
+## Splash damage at `distance` from the blast centre, before the target's armour
+## and resistance.
+##
+## FULL AT THE CENTRE, A FLOOR AT THE RADIUS, ZERO BEYOND IT. The floor is what
+## makes this a falloff rather than a constant with a hard edge; the zero is what
+## makes the radius mean something. Both matter: a curve that reached zero
+## exactly at the radius would be indistinguishable from no blast at all for
+## anything standing near the edge, and one that carried on past it would make
+## blast_radius a lie the terrain and the effects both already tell the truth
+## about. "Beyond" means beyond by more than EDGE_TOLERANCE - see that const.
+##
+## Linear rather than inverse-square: this is a feel dial, and a designer reading
+## "quarter damage at the edge" off SPLASH_EDGE_FRACTION can predict the number
+## at half the radius without arithmetic.
+func splash_damage_at(distance: float) -> float:
+	if distance > blast_radius + EDGE_TOLERANCE:
+		return 0.0
+	if blast_radius <= 0.0:
+		return splash_damage
+	var t := clampf(distance / blast_radius, 0.0, 1.0)
+	return splash_damage * lerpf(1.0, SPLASH_EDGE_FRACTION, t)
+
+
+# Every distinct Damageable whose body overlaps the blast, filtered by hit_mask.
+#
+# hit_mask RATHER THAN A SECOND "WHAT CAN I HURT" LIST, and that is the rule the
+# mask's own comment sets out: the bits a shell masks are the bits it can damage.
+# It also means the player is not caught by his own splash - PLAYER is deliberately
+# absent from the mask - and that S4c widening the mask to ENEMIES gives the red
+# tanks splash for free, with no second place to remember.
+#
+# DEDUPED, and that is not tidiness. intersect_shape() reports one result per
+# SHAPE, and a tower carries two CollisionShape3Ds (shaft and cap), so an
+# un-deduped loop applies splash to the same tower twice - the same double-damage
+# failure the direct-hit exclusion above exists to prevent, arriving through the
+# query instead of through the caller.
+#
+# A physics query rather than a group or a registry: the bodies were added to the
+# tree at load and the broadphase has stepped many times since, so this has none
+# of the same-frame staleness Spawner._is_clear() avoids analytics for.
+func _damageables_in_blast(at: Vector3) -> Array[Damageable]:
+	var out: Array[Damageable] = []
+
+	var world := get_world_3d()
+	if world == null:
+		return out
+
+	var sphere := SphereShape3D.new()
+	sphere.radius = blast_radius
+
+	var query := PhysicsShapeQueryParameters3D.new()
+	query.shape = sphere
+	query.transform = Transform3D(Basis.IDENTITY, at)
+	query.collision_mask = hit_mask
+	query.collide_with_bodies = true
+	query.collide_with_areas = false
+
+	for hit in world.direct_space_state.intersect_shape(query, MAX_BLAST_TARGETS):
+		var found := Damageable.of(hit.get("collider") as Node)
+		if found != null and not out.has(found):
+			out.append(found)
+
+	return out
 
 
 # Points the shell along its own velocity, so a long mesh reads as a

@@ -38,4 +38,5 @@ spawn_clearance = 4.0
 trip_fade = 1.2
 spawn_manifest = Array[SpawnGroup]([SubResource("Group_tower")])
 spawn_seed = 20260826
+kill_heal = 20.0
 player_keepout = 26.0

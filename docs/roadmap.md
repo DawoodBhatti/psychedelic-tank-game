@@ -670,14 +670,79 @@ hits passes a test that only checks it dies.
 ---
 
 ## S4b — Shells that hurt, and a tank that can die
-- status: todo
+- status: done
 - depends: S4
-- gate: on the live nodes, a direct hit, a hit at the blast edge and a hit just outside it are
-  three distinguishable numbers off `Damageable.health`, the direct hit at least 4× the edge
-  hit and the outside hit **exactly zero**; the player survives two direct hits and dies on the
-  third (`alive` reads true, true, false); a kill heals the player by the authored amount and
-  never above `max_health`; the HUD bar's own width var tracks `health_fraction()` at three
-  different healths.
+- landed: 2026-08-31, Reviewer-verified — every clause below re-driven off live nodes, not taken
+  on the Doer's report. **Splash falloff** `splash_damage_at(0 / 4.0 / 8.0 / 8.0005 / 8.5)` =
+  **8.0 / 5.0 / 2.0 / 2.0 / 0.0**, so direct **20.0** ÷ edge **2.0** = **10×** against a required
+  4×, and outside the radius is **exactly 0.0**. `splash_damage` **8.0** = `NOMINAL_DAMAGE`
+  **20.0** × 0.4, `SPLASH_EDGE_FRACTION` **0.25**, `blast_radius` **8.0**, `EDGE_TOLERANCE`
+  **0.001** (the tolerance holds: 8.0005 still pays 2.0, not 0.0); none overridden in
+  `shell.tscn`.
+  **The double-application exclusion, which passes every test when wrong, is excluded twice
+  over.** A direct hit reads `health` **100.0 → 80.0** with the report `{"direct":20.0,
+  "splash_targets":0}` — one `Shell.damage`, not 72, not 64. And `intersect_shape()` returns one
+  result per **shape**, so `_damageables_in_blast()` dedupes by `Damageable` instance. The
+  Reviewer's first dedup probe was a false pass and it said so: an 8-unit sphere at a tower's
+  base overlaps only the shaft (y0–20, cap y20–23.2), so 100.0 → 95.0 would read identically
+  un-deduped. Forcing a genuine two-shape overlap — `blast_radius` 30.0, blast at
+  `tower + (0,20,0)` — gives **100.0 → 96.0** against 92.0 un-deduped. Dedup real.
+  **The player dies on the third hit.** `max_health` **60.0** = 3 × `NOMINAL_DAMAGE`, derived:
+  `hits_to_kill()` returns the division and reads **3**. Health **60 → 40 → 20 → 0** with `alive`
+  **true, true, false** and `damageable.is_alive` false. Profile `armour` **0.0**, `resistance`
+  **[1.0, 1.0, 1.0]**, and `min_damage_fraction` **0.1** proved inert — `damage_taken(20.0,
+  KINETIC)` is **20.0** exactly, since `maxf(scaled - armour, scaled * frac)` can only return
+  `scaled` at armour 0. `profile.resource_path` = `res://entities/profiles/player_tank.tres`, so
+  the authored `.tres` resolves rather than matching script defaults.
+  **Healing is the level's decision**, `kill_heal` **20.0** off `res://levels/valley.tres`: player
+  at 40 → **60** on a tower kill, → **60** on a second (clamped, no overshoot). `heal(20.0)` on a
+  dead tank returns **0.0** and health stays 0.0 — healing does not resurrect. `damage_absorbed`
+  **80.0** survives `respawn()`/`restore()`.
+  **Bars, read off vars derived differently from what the change writes.** HUD `health_bar_width`
+  **340.0 / 226.667 / 113.333 / 0.0** across four healths, tracking `health_fraction()`; 340.0 is
+  the live `Control`'s laid-out size, not a literal, and it is a computed getter rather than a
+  `_process` mirror. World-space `HealthBar3D.fill_width` **6.0 → 4.80** at `fill_fraction` 0.8.
+  The fill resizes its **QuadMesh** rather than scaling the node, because a billboard discards
+  node scale without `FLAG_BILLBOARD_KEEP_SCALE` — a scaled node would read back correctly from
+  the harness and still draw full-width. `min_health_bar_clearance` **1.94999**, which is exactly
+  25.5 − 0.7/2 − 23.2 off the authored cap top, derived independently and agreeing.
+  **`death_reset_delay` 1.6 is a new dial the roadmap did not ask for, and the Reviewer judged it
+  legitimate on the record.** Without it `_on_destroyed → emit → main → respawn() → restore()`
+  completes inside the destroyed call, so the third hit is indistinguishable from the second **to
+  a player as well as to the harness** — an instant teleport, not a death. It is not a second
+  death path: both branches still emit one `level_reset_requested` into one handler, the delay
+  sits on the emit, and the fall path is byte-for-byte HEAD's (`death_height` **−181.07** =
+  `world_floor() − 20.0`, untouched; the new `if not alive: return` was inserted after it).
+  **Known property, not a surprise:** the `true, true, false` clause is satisfiable only while
+  `death_reset_delay > 0`; setting it to 0 returns the gate to true/true/true with no code change.
+  **Collision re-measured off live bodies:** tank layer **2** / mask **41**, tower layer **32** /
+  mask **0**, shell `hit_mask` **33** — all unchanged from S4. This change adds **no new physics
+  bodies**: `Damageable` is a `Node`, `HealthBar3D` a `Node3D` with two `MeshInstance3D`s.
+  `PLAYER` stays absent from `hit_mask`, so the firer is not caught by his own splash.
+  Tests 1–6 pass: `script_errors=0`, `check_resources PASS {"checked":16,"failed":[]}`, **zero
+  errors and zero warnings**, fps **min 111 avg 118.6 max 120** (120 is the vsync ceiling), load
+  **2.215 s** headless / **2.202 s** windowed. Visual confirmed against constructed controls on
+  two channels each: HUD fill `luma_mean` **166** / `hue_frac.green` **1.000** against an empty
+  band 12 px below at **6.4 / 0.000**; world bar **96.2 / 0.982** against flanking boxes at
+  **233–236 / 0.000**. `.claude/images/s4b-review.png`.
+- unverified: **nothing was exercised through gameplay input.** Every damage number came from
+  direct method calls on live nodes — no shell was flown into a tower, because `_physics_process`
+  does not run inside an eval batch, so the raycast → `_detonate` → `apply_blast` path is
+  unchanged in shape but untested end to end. `death_reset_delay` **never elapsed** in any
+  measurement: the timer is created and `alive` stays false, but the reset firing 1.6 s later is
+  unobserved, as is what the wreck looks like during it (it freezes exactly — `_physics_process`
+  returns before `_drive()`, so a tank destroyed mid-air hangs; this matches HEAD's pre-existing
+  `if alive: move_and_slide()` and is not a regression). The world-space bar was photographed at
+  **full health only** — the fill shrinking on screen is argued from `fill_width` 4.80 headless,
+  not demonstrated in pixels.
+- also noted, for S4c: **splash distance is measured to the entity's origin, not its nearest
+  surface** (`at.distance_to(splashed.entity().global_position)`). A tower's origin is at its base
+  and it stands 23.2 units tall, so a shell detonating beside the *cap* does **zero** splash to
+  it. Correct per this gate and it never double-counts, but S4c hangs the same rule on moving
+  tanks, where the origin is much closer to the whole body. **Nothing can hurt the player in play
+  yet** — `hit_mask` excludes `PLAYER` deliberately, so the death path is reachable only from
+  code until S4c. `Tank.hits_to_kill()` copies `Tower`'s `int(round(...))`, so its comment's "a
+  mismatch shows up as a non-integer hit count" is not literally true — `round` hides ±0.49.
 
 **What is wanted:** shells that do damage where they land and less damage nearby, a player that
 can be killed, and a bar for both. **No AI here** — S4c brings the things that shoot back. This
@@ -775,6 +840,32 @@ and this file's Deferred list both named enemy AI as not-being-built. The user a
 2026-08-30; both have been updated. Scoring and win/lose conditions are **still** deferred — an
 enemy that kills you and heals you is a mechanic, not an objective, and nothing here should grow
 a score.
+
+**What S4b left you** (2026-08-31), so you do not rebuild it or re-buy the launches:
+
+- **The health bar is already reusable.** `entities/health_bar_3d.gd` (`class_name HealthBar3D`)
+  finds its own `Damageable` via `Damageable.of(get_parent())` and is driven by the `damaged`
+  signal, not `_process`. The enemy adds the node; it does not author a second bar. It resizes
+  its `QuadMesh` rather than scaling its node — **do not "simplify" that to a node scale**, a
+  billboard discards scale without `FLAG_BILLBOARD_KEEP_SCALE` and it would read back correctly
+  from the harness while drawing full-width on screen.
+- **Killing already heals the player, and the level already decides it.** `LevelDef.kill_heal`
+  is **20.0** in `levels/valley.tres`, spent in `main.gd:_on_entity_destroyed()` and guarded so
+  the player's own death is not a kill. Verified 40 → 60, and clamped at `max_health` on a second
+  kill. An enemy that heals on death needs **no new code** — only that it goes through the same
+  destroyed path. Do not give the enemy knowledge of the heal.
+- **Widening `hit_mask` gives enemies splash for free.** `Shell`'s blast target set is filtered
+  by `hit_mask` rather than a second list, so adding `ENEMIES` to the mask (which this session is
+  the one allowed to do) makes red tanks splashable with nothing else to remember. `hit_mask` is
+  **33** today. **`PLAYER` must stay out of it** — that is what stops the firer being caught in
+  his own blast, and it is also why nothing can hurt the player in play until you wire enemy fire.
+- **Splash is measured to the entity origin, not its nearest surface.** Harmless on towers; check
+  it on a tank hull, whose origin sits much closer to the whole body, before authoring the
+  enemy's `max_health` against a near miss.
+- **`Tank` now carries `death_reset_delay` (1.6 s)** between death and the reset emit, because a
+  synchronous respawn made the third hit indistinguishable from the second. If the enemy reuses
+  any of the player's death path, it inherits that delay — decide deliberately whether a red tank
+  should linger as a wreck or vanish.
 
 **1. The enemy entity.** `entities/enemy_tank.gd` + `entities/enemy_tank.tscn`, on
 `CollisionLayers.ENEMIES` (`1 << 3`, which S4 was told to leave alone for exactly this).
