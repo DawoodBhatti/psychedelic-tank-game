@@ -370,22 +370,53 @@ func min_ground_clearance() -> float:
 	return worst
 
 
-## Placed entities still in the tree, counted live rather than remembered. It
-## differs from `entities_placed` exactly when something has been freed.
-func live_entity_count() -> int:
-	var live := 0
-	for node in _placed_nodes:
-		if is_instance_valid(node):
-			live += 1
-	return live
+# ------------------------------------------------------------
+# Counting what was placed
+# ------------------------------------------------------------
+# `kind` IS A SCRIPT, NOT A GROUP NAME OR AN ID STRING, and that is the whole
+# design of this filter.
+#
+# S4 left these three deliberately general - they count any Damageable - because
+# the only thing on the glen was towers. S4c puts red tanks on it too, and one
+# number over both makes "five hits kill a tower" untestable the moment an enemy
+# dies. So they need to be splittable, and the choice is HOW.
+#
+# The obvious form is a string: live_damageable_count("enemy"), matched against
+# the SpawnGroup id. It is also the dangerous one. A typo returns zero placed
+# AND zero alive, and "0 of 0" is exactly what main.gd documents as "nothing has
+# died" - a broken filter that passes every gate written against it, which is
+# the precise failure this whole pipeline exists to catch.
+#
+# A Script cannot be mistyped: `EnemyTank` either resolves at parse time or the
+# file does not compile. It is also the more honest question - what something IS
+# rather than which line of a manifest happened to place it - so a red tank
+# dropped into a level by hand is still counted as one.
+#
+# Null counts everything, so every existing call site keeps its old behaviour.
 
-
-## Placed entities carrying a Damageable that has not been destroyed.
-func live_damageable_count() -> int:
-	var live := 0
+## Placed entities still in the tree, optionally only those carrying `kind`.
+## Counted live rather than remembered, so it differs from `entities_placed`
+## exactly when something has been freed.
+func placed(kind: Script = null) -> Array[Node3D]:
+	var out: Array[Node3D] = []
 	for node in _placed_nodes:
 		if not is_instance_valid(node):
 			continue
+		if kind != null and not is_instance_of(node, kind):
+			continue
+		out.append(node)
+	return out
+
+
+## Placed entities still in the tree.
+func live_entity_count(kind: Script = null) -> int:
+	return placed(kind).size()
+
+
+## Placed entities carrying a Damageable that has not been destroyed.
+func live_damageable_count(kind: Script = null) -> int:
+	var live := 0
+	for node in placed(kind):
 		var d := Damageable.of(node)
 		if d != null and d.is_alive:
 			live += 1
@@ -393,10 +424,10 @@ func live_damageable_count() -> int:
 
 
 ## Placed entities carrying a Damageable at all, alive or not.
-func damageable_count() -> int:
+func damageable_count(kind: Script = null) -> int:
 	var total := 0
-	for node in _placed_nodes:
-		if is_instance_valid(node) and Damageable.of(node) != null:
+	for node in placed(kind):
+		if Damageable.of(node) != null:
 			total += 1
 	return total
 

@@ -1,0 +1,26 @@
+[gd_resource type="StandardMaterial3D" format=3]
+
+; "Entirely red", as ONE resource applied over the whole chassis.
+;
+; It is mounted as SkinSlot.material_override rather than authored onto each
+; mesh, which is what makes the red survive the placeholder boxes being swapped
+; for a sourced model: whatever the slot mounts gets painted, and there is no
+; per-mesh material to remember to re-tint.
+;
+; EMISSIVE, AND NOT ONLY FOR THE LOOK. The valley is lit by one dim violet
+; directional light, so an unlit dark-red hull in shadow reads as grey - and
+; "grey" is literally what the render checker calls it: check_render.py buckets
+; a pixel as `grey` below 0.15 saturation and as `dark` below a max channel of
+; 40, so a shadowed matte red would score near zero on hue_frac.red while
+; looking approximately correct to an eye. The emission keeps the hue measurable
+; from any angle, which is the difference between a visual check with a right
+; answer and one nobody can fail.
+
+[resource]
+resource_name = "EnemyTankRed"
+albedo_color = Color(0.72, 0.06, 0.07, 1)
+metallic = 0.5
+roughness = 0.45
+emission_enabled = true
+emission = Color(1, 0.08, 0.1, 1)
+emission_energy_multiplier = 1.1

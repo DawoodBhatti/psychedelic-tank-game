@@ -107,13 +107,39 @@ const EDGE_TOLERANCE := 0.001
 ## exists to prevent one layer up. _detonate() now applies damage, so the bit
 ## has earned its place.
 ##
-## ENEMIES is still absent, and that is again the same rule: nothing is on that
-## layer today. It goes in with S4c's red tanks, in the session that gives them
-## a Damageable to take the hit.
+## ENEMIES JOINED IN S4c, under that same rule and not before it: the red tanks
+## arrived with a Damageable and an authored profile in the same session, so the
+## bit was never masked without damage behind it. The mask-rather-than-a-second-
+## list rule still holds - there is only ever one place that says what a shell may
+## hurt, and it is this line.
+##
+## BUT THE BIT BUYS DIRECT HITS ONLY, NOT SPLASH, AND THAT IS MEASURED. The two
+## halves of this file ask the physics server different questions:
+## _physics_process casts a RAY, and _damageables_in_blast() casts a SHAPE. Under
+## this project's Jolt backend intersect_shape() does not report a
+## CharacterBody3D at all, while intersect_ray() does. So adding ENEMIES is what
+## makes the swept ray find a red tank and kill it, and the blast query at the
+## same tank returns nothing.
+##
+## Measured rather than reasoned: _damageables_in_blast() at an enemy's origin
+## returns 0, at its hull centre (+ Vector3(0, 0.75, 0)) returns 0, and at a
+## tower's origin returns 1; a live shell with velocity (-300, 0, 0) and one
+## _physics_process(0.2) took that same enemy 20.0 -> 0.0 with crater_count()
+## still 0, so the ray struck the body rather than the ground under it.
+##
+## IT IS NOT A PROPERTY OF THE ENEMY. The player's own tank is a CharacterBody3D
+## and is equally invisible to the blast query - adding PLAYER to this mask
+## temporarily reported 0 splash targets standing on top of it. Anything that
+## later wants a blast to reach a character body needs a different query, not a
+## different bit here.
+##
+## PLAYER IS STILL ABSENT AND MUST STAY ABSENT. It is the only thing stopping the
+## firer being caught in his own blast, and now that something on the map can
+## kill him it is the difference between a near miss and a suicide.
 ##
 ## Not stored in shell.tscn - this default is the only place the value lives.
 @export_flags_3d_physics var hit_mask: int = CollisionLayers.TERRAIN \
-	| CollisionLayers.STRUCTURES
+	| CollisionLayers.ENEMIES | CollisionLayers.STRUCTURES
 
 var velocity: Vector3 = Vector3.ZERO
 
@@ -253,8 +279,18 @@ func splash_damage_at(distance: float) -> float:
 # hit_mask RATHER THAN A SECOND "WHAT CAN I HURT" LIST, and that is the rule the
 # mask's own comment sets out: the bits a shell masks are the bits it can damage.
 # It also means the player is not caught by his own splash - PLAYER is deliberately
-# absent from the mask - and that S4c widening the mask to ENEMIES gives the red
-# tanks splash for free, with no second place to remember.
+# absent from the mask.
+#
+# WHAT THE MASK CANNOT BUY HERE, MEASURED IN S4c: this query returns nothing for a
+# CharacterBody3D under Jolt, whatever bits are set. Both tanks in the game are
+# CharacterBody3Ds, so ENEMIES in the mask makes the swept ray in
+# _physics_process() find a red tank and kill it outright, and leaves this
+# function unable to see the same tank standing at the blast's centre. Splash
+# reaches the towers, which are StaticBody3Ds, and nothing else.
+#
+# So DO NOT read "it is in hit_mask" as "it can be splashed" - the two came apart
+# here. See the hit_mask docblock for the numbers, including the control that
+# rules out this being something about the enemy rather than about the query.
 #
 # DEDUPED, and that is not tidiness. intersect_shape() reports one result per
 # SHAPE, and a tower carries two CollisionShape3Ds (shaft and cap), so an

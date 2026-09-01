@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="DamageProfile" load_steps=2 format=3]
+
+; One direct hit kills a red tank, and the number that says so is
+; 1 x Shell.NOMINAL_DAMAGE (20.0). EnemyTank.hits_to_kill() DIVIDES by that
+; constant rather than repeating the 1, so retuning the shell re-derives this
+; and a drift shows up as a hit count that is not 1 rather than as a tank that
+; survives a hit it was meant to die to.
+;
+; armour 0.0 AND EVERY RESISTANCE 1.0, both on purpose. Any armour at all would
+; make damage_taken() return less than 20 for a 20-point hit, which is a tank
+; that takes two shells while every comment in the project says one. The
+; resistances are written out rather than left empty for the same reason: an
+; empty array defaults to 1.0, but only the written form says that was decided.
+;
+; min_damage_fraction is inert here (it only bites when armour >= damage) and is
+; left at the project default so a later armour value cannot make this
+; invulnerable by accident.
+
+[ext_resource type="Script" path="res://entities/DamageProfile.gd" id="1_profile"]
+
+[resource]
+script = ExtResource("1_profile")
+max_health = 20.0
+armour = 0.0
+resistance = PackedFloat32Array(1, 1, 1)
+min_damage_fraction = 0.1

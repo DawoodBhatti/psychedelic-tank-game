@@ -148,20 +148,14 @@ func _stage_for(fraction: float) -> float:
 # SkinSlot.set_skin() can replace the entire subtree at any time, and a cached
 # list would then hold freed nodes and silently stop cracking anything - the
 # failure being invisible, because writing a parameter to nothing raises nothing.
+#
+# THE WALK ITSELF IS SkinSlot.geometry() NOW, not a private copy here. S4c needed
+# the same list to paint the red tanks, and a third copy of "every mesh under the
+# skin" - HealthBar3D already has a near-twin for its own reasons - is three
+# places to disagree about what a skin is showing.
 func _set_crack(stage: float) -> void:
 	crack_stage = stage
 	if skin == null:
 		return
-	for node in _skin_geometry(skin):
+	for node in skin.geometry():
 		node.set_instance_shader_parameter("damage_amount", stage)
-
-
-# Every GeometryInstance3D under the skin, at any depth: a real model arrives as
-# a nested scene, not as one mesh.
-func _skin_geometry(node: Node) -> Array[GeometryInstance3D]:
-	var out: Array[GeometryInstance3D] = []
-	for child in node.get_children():
-		if child is GeometryInstance3D:
-			out.append(child)
-		out.append_array(_skin_geometry(child))
-	return out

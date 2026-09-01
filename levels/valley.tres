@@ -1,4 +1,4 @@
-[gd_resource type="Resource" script_class="LevelDef" load_steps=10 format=3]
+[gd_resource type="Resource" script_class="LevelDef" load_steps=13 format=3]
 
 [ext_resource type="Script" path="res://levels/LevelDef.gd" id="1_def"]
 [ext_resource type="Resource" path="res://terrain/fields/world_field.tres" id="2_field"]
@@ -7,6 +7,7 @@
 [ext_resource type="Script" path="res://entities/PlacementRule.gd" id="5_rule"]
 [ext_resource type="Script" path="res://entities/SpawnGroup.gd" id="6_group"]
 [ext_resource type="PackedScene" path="res://entities/tower.tscn" id="7_tower"]
+[ext_resource type="PackedScene" path="res://entities/enemy_tank.tscn" id="8_enemy"]
 
 [sub_resource type="Resource" id="Rule_tower"]
 script = ExtResource("5_rule")
@@ -29,6 +30,59 @@ ground_clearance = 0.6
 separation = 110.0
 random_yaw = true
 
+; THE RED TANKS. Ground they can drive on, kept off the crests the towers own.
+;
+; Every bound sits between two numbers measured on THIS pool - the quantiles in
+; PlacementRule's header, re-measured for S4 on the post-S3 field:
+;   slope 0-14 deg   14.0 sits between p50 13.488 and p75 18.229, so about half
+;                    the pool is flat enough. A tank has to be able to drive out
+;                    of where it starts, and floor_max_angle 0.9 rad is 51.6 deg
+;                    for the body - this is the much tighter "it should not spawn
+;                    on a wall" bound, not the physics limit.
+;   elevation 0-0.7  a RANK, so it needs no re-deriving when the field changes.
+;                    The lower 70%: the glen floor and the mid-slopes, which is
+;                    where a patrol is worth meeting. The towers take 0.55-1.0,
+;                    so the two groups overlap rather than partition - deliberate,
+;                    since a red tank circling a landmark is the good case.
+;   openness 0-1     left permissive. Openness here is a 60-unit window on a
+;                    2022-unit world (see PlacementRule), so it says "locally
+;                    unobstructed" - a fine thing to demand of a landmark and a
+;                    meaningless thing to demand of something that drives.
+;   edge 0-1         left permissive; edge_margin already holds candidates 6
+;                    units inside the world, and any minimum below 0.006 is inert.
+;
+; separation 150.0 is above the pool's ~100-unit pitch (below that a separation
+; cannot reject anything) and above player_keepout 26.0, which is what actually
+; matters: the reservation takes the LARGER of the two, so no red tank starts
+; within 150 units of the player. With a patrol radius of 110 that still lets a
+; patrol circle reach towards the spawn without ever containing it.
+;
+; ground_clearance 2.0 rather than the tower's 0.6: this is a CharacterBody3D
+; with a 3.2 x 4.6 footprint, and a corner of that box dug into a slope is
+; resolved by the physics engine launching it. It falls the 2 units in the first
+; few frames, exactly as the player's spawn_clearance 4.0 does.
+
+[sub_resource type="Resource" id="Rule_enemy"]
+script = ExtResource("5_rule")
+min_slope_degrees = 0.0
+max_slope_degrees = 14.0
+min_elevation_percentile = 0.0
+max_elevation_percentile = 0.7
+min_openness = 0.0
+max_openness = 1.0
+min_edge_fraction = 0.0
+max_edge_fraction = 1.0
+
+[sub_resource type="Resource" id="Group_enemy"]
+script = ExtResource("6_group")
+id = "enemy"
+scene = ExtResource("8_enemy")
+count = 4
+placement = SubResource("Rule_enemy")
+ground_clearance = 2.0
+separation = 150.0
+random_yaw = true
+
 [resource]
 script = ExtResource("1_def")
 field = ExtResource("2_field")
@@ -36,7 +90,7 @@ surface_material = ExtResource("3_material")
 environment = ExtResource("4_env")
 spawn_clearance = 4.0
 trip_fade = 1.2
-spawn_manifest = Array[SpawnGroup]([SubResource("Group_tower")])
+spawn_manifest = Array[SpawnGroup]([SubResource("Group_tower"), SubResource("Group_enemy")])
 spawn_seed = 20260826
 kill_heal = 20.0
 player_keepout = 26.0

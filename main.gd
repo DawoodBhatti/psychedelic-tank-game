@@ -174,13 +174,91 @@ var min_ground_clearance: float:
 ## `Spawner.live_damageable_count()` and `damageable_count()` keep their general
 ## names and their general behaviour - they count any Damageable, and splitting
 ## them by category is that session's problem, not this one's.
+##
+## S4C SPLIT THEM, and by TYPE rather than by group id - see the Spawner's own
+## note on why a mistyped string filter reports "0 of 0" and passes. These two
+## now count towers ONLY, so five-hits-to-kill stays testable after a red tank
+## dies.
 var towers_alive: int:
 	get:
-		return spawner.live_damageable_count() if spawner != null else 0
+		return spawner.live_damageable_count(Tower) if spawner != null else 0
 
 var towers_total: int:
 	get:
-		return spawner.damageable_count() if spawner != null else 0
+		return spawner.damageable_count(Tower) if spawner != null else 0
+
+## The red tanks, counted the same way and SEPARATELY. Same pairing rule as the
+## towers: read alive WITH total, because 0 of 0 and 4 of 4 both mean "nothing
+## has died" and only one of them means the level has enemies in it.
+##
+## Nothing is freed on death - a killed red tank stays as a wreck, exactly as a
+## destroyed tower stays standing - so `enemies_alive` moves off
+## `Damageable.is_alive` and `enemies_total` does not move at all.
+var enemies_alive: int:
+	get:
+		return spawner.live_damageable_count(EnemyTank) if spawner != null else 0
+
+var enemies_total: int:
+	get:
+		return spawner.damageable_count(EnemyTank) if spawner != null else 0
+
+# --- Patrol containment ----------------------------------------------------
+# WHERE THE AI PUT ITS TANKS OVER TIME, which is the same kind of unanswerable
+# question the scatter clearances above exist for and needs the same kind of
+# answer. A position is a claim about one instant; nothing in the test sequence
+# asks where anything went; and no frame runs inside a --harness-eval batch, so
+# a patrol that quietly wanders off cannot be caught by reading a transform.
+#
+# The enemies accumulate the numbers in _physics_process, on the code path that
+# writes them; these are getters over the live nodes, so they cannot go stale.
+
+## Smallest margin any red tank had left inside its own patrol circle - its
+## radius minus the furthest it ever got from its centre while patrolling.
+## Positive means every patrol stayed inside its patch by that much.
+##
+## INF when there are no enemies at all, so READ IT WITH `patrol_frames_sampled`
+## and `enemies_total`: a clearance measured over nothing passes any threshold
+## put on it, which is the same trap `min_spawn_clearance` is paired with
+## `entities_spawned` against.
+var min_patrol_clearance: float:
+	get:
+		var worst := INF
+		for node in _enemies():
+			worst = minf(worst, node.patrol_clearance())
+		return worst
+
+## Fewest physics frames any one red tank contributed to the number above. Zero
+## means at least one of them was never sampled, and its clearance is therefore
+## its full radius for no reason at all.
+var patrol_frames_sampled: int:
+	get:
+		var fewest := 0
+		var first := true
+		for node in _enemies():
+			fewest = node.patrol_frames if first else mini(fewest, node.patrol_frames)
+			first = false
+		return fewest
+
+## Times any red tank has gone from patrolling to engaging, and back again.
+##
+## THESE ARE THE ONLY THING THAT SAYS THE STATE MACHINE CONSULTS ITS SENSES.
+## `EnemyTank.can_see()` can be called directly and proves the predicate; it does
+## not prove anything reads it. These move only inside the transition, so a run
+## with the player parked in view and `enemy_aggro_transitions` still at 0 is a
+## machine ignoring its own eyes.
+var enemy_aggro_transitions: int:
+	get:
+		var total := 0
+		for node in _enemies():
+			total += node.aggro_transitions
+		return total
+
+var enemy_leash_transitions: int:
+	get:
+		var total := 0
+		for node in _enemies():
+			total += node.leash_transitions
+		return total
 
 ## Smallest gap between any world-space health bar and the geometry it hangs
 ## over. Positive means every bar clears its entity by that much; zero or below
@@ -220,6 +298,7 @@ func _ready() -> void:
 
 	_place_tank()
 	_scatter_entities()
+	_wire_enemies()
 
 	ui.tank = tank
 	ui.terrain = terrain
@@ -260,6 +339,18 @@ func _ready() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("toggle_trip"):
 		set_trip(not trip_active)
+
+
+# The red tanks the scatter placed, typed. Asked of the Spawner rather than
+# walked, because they are placed entities and the Spawner is what knows which
+# nodes it placed.
+func _enemies() -> Array[EnemyTank]:
+	var out: Array[EnemyTank] = []
+	if spawner == null:
+		return out
+	for node in spawner.placed(EnemyTank):
+		out.append(node as EnemyTank)
+	return out
 
 
 # Every HealthBar3D anywhere under `node`. Walked rather than asked of the
@@ -326,6 +417,23 @@ func _place_tank() -> void:
 func _scatter_entities() -> void:
 	spawner.reserve(tank.spawn_position, level.player_keepout)
 	spawner.scatter(terrain, level.spawn_manifest, level.spawn_seed)
+
+
+# Introduces the red tanks to the thing they hunt.
+#
+# THE LEVEL DOES THIS, NOT THE ENEMY, and it is the same division of labour that
+# hands the terrain its follow_target two functions up: an enemy that went
+# looking for the player would have to know the game contains one, and this
+# file's header exists to keep that knowledge in one place. It is also what keeps
+# enemy_tank.tscn droppable into a scene with no player in it - the target simply
+# stays null and it patrols.
+#
+# AFTER _scatter_entities(), necessarily: there is nothing to wire until the
+# spawner has placed them. Before the first physics frame, so no enemy ever runs
+# a frame with a null target it could have had.
+func _wire_enemies() -> void:
+	for enemy in _enemies():
+		enemy.target = tank
 
 
 # ------------------------------------------------------------

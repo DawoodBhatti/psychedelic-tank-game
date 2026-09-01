@@ -815,7 +815,7 @@ off, which is exactly what `DamageProfile.min_damage_fraction` exists to prevent
 ---
 
 ## S4c — The red tanks: patrol, aggro, leash
-- status: todo
+- status: in-progress
 - depends: S4b
 - gate: an unaggroed enemy's distance from its patrol centre stays within its radius across 300
   physics frames; with the player placed in the open inside its sight range the state flips to
