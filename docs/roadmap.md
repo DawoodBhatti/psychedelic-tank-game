@@ -1033,6 +1033,153 @@ or any objective built on top of kills. `ENEMY_SHELLS` (`1 << 4`) stays reserved
 
 ---
 
+## S4d — The ground that is drawn but not there
+- status: todo
+- depends: S4c
+- gate: a downward ray sweep at `collision_mask = 1` across the **drawn** extent — the clipmap's
+  ±2048, not the collider's — reports the set of sample points where no terrain collider is
+  found; **the same sweep is run before the change and reports a NON-EMPTY miss set**, so the
+  test is known to be able to fail before it is trusted to pass; after the change the miss set
+  is empty everywhere the tank can legitimately drive, against a boundary stated as a number
+  rather than implied; `max_collision_disagreement()` sampled over that whole boundary stays
+  **finite** and under 1.0 world unit; and every live enemy's `patrol_centre` plus its patrol
+  radius is inside the same boundary, measured off the live nodes.
+
+**Reported from play, 2026-09-01:** the tank falls through the floor on certain segments.
+
+**The reported cause is a fair guess and it is wrong, which is worth writing down before anyone
+spends a launch on it.** Chunk stitching with a missing physics shape is the *voxel* renderer's
+failure mode — `terrain/voxel/chunk.gd` builds one collider per chunk, and `CLAUDE.md § Traps`
+carries the `generate()`/`rebuild()` double-collider entry from exactly that code. S3 moved the
+world to `terrain/heightmap/heightmap_terrain.gd`, which builds **one** `HeightMapShape3D` on
+**one** `StaticBody3D` (`_build_collision()`, layer 1, mask 0). There are no per-chunk colliders
+to stitch and no seam between them to leak through.
+
+**What the numbers say instead, all read off the source rather than measured in play.** The
+clipmap draws to `grid_size` **64** × `base_spacing` **2.0** × 2^(`levels` **6** − 1) = 4096
+across, so **±2048**. The collider and the height texture cover `world_size` **(2022, 2010)**,
+so **±1011 x** and **±1005 z**. `heightmap_terrain.gd:87-91` says so in as many words — "The
+clipmap itself reaches far beyond this; outside the footprint the shader clamps to the edge
+texel … so the ground runs flat to the horizon rather than to void." That flat ground to the
+horizon is drawn, lit, gridded and **has no collider under it**. By area the collidable box is
+4.06 M units² of a 16.78 M units² drawn field: **roughly three quarters of the visible ground is
+not there.** Drive past x ±1011 or z ±1005 and you fall to `death_height` −181.07 and respawn —
+and because the boundary is a rectangle, which heading you take decides when you meet it, which
+is what "certain segments" would look like from the driving seat.
+
+**This violates the file's own stated invariant**, which is the strongest argument that it is a
+bug and not a decision: `heightmap_terrain.gd:21-22` opens with "The vertex shader and the
+collider must produce the same surface or the tank drives on ground nobody can see." It holds
+inside the footprint by construction — same `PackedFloat32Array` for both — and it is simply
+absent outside it.
+
+**Why no test caught it, which is the more useful half.** `max_collision_disagreement()` returns
+`INF` when any ray misses, and its docstring calls a missed ray "the catastrophic case" that
+"must not read as perfect agreement". It is right, and it never fires: it derives its own sample
+box from `world_extent_x()`/`world_extent_z()`, so **it has only ever looked inside the region
+that is known to be fine.** Every sweep in this file does the same. The gate above deliberately
+sweeps the *drawn* extent for that reason.
+
+**Do not fix this by moving `death_height` or by making the fall survivable.** The tank is not
+falling because the death height is wrong; it is falling because it is standing on nothing.
+
+**Three fixes, and the session picks one on measured cost.** The default, absent a reason:
+
+- **A coarse outer collider (recommended).** Outside the footprint the surface is *flat* by
+  construction — the shader clamps to the edge texel. Flat ground needs almost no resolution, so
+  a second `HeightMapShape3D` at a large pitch, or a ring of plane colliders, covers ±2048 for a
+  fraction of the current cost. Keeps everything that is drawn, keeps the invariant, changes no
+  gameplay. The edge texel is *not* one value — it varies along each edge — so a single flat
+  plane at one height will not meet the disagreement clause; that is the trap in this option.
+- **Extend the real collider to the drawn extent.** Honest and simple, and it quadruples the
+  bill: `collision_pitch` **2.0** over ±2048 is ~4.19 M CPU height samples against today's
+  ~1.02 M, and a ~16 MB R32F texture against 4 MB. Load is **2.46 s** now and terrain meshing
+  dominates it (`CLAUDE.md` test 5), so measure the new load time before adopting this, and
+  treat >30 s as a fail per the same rule.
+- **Bound the world.** A wall at the collidable edge, with the far ground demoted to scenery.
+  Cheapest and the only one that changes the game, so it is the user's call and not the Doer's —
+  and it must apply to enemies too, not only the player.
+
+**Do not widen placement to match.** Whatever the collider ends up covering, `TerrainAnalysis`
+bounds spawning with `world_extent_x()`/`world_extent_z()` and S3's landed note says plainly not
+to widen it to the drawn extent. Extending collision is not licence to scatter towers on the
+flat apron; those are two different questions and only one is being asked here.
+
+**The S4c interaction, which is the same bug wearing a different hat.** Enemy patrol centres are
+placed inside the collidable box, but `patrol_radius` is **110** and the fence only holds a tank
+within that radius *of its centre* — a centre at x 1000 patrols legitimately to x 1110, which is
+off the collider today. The gate's last clause is there for this: it is measured off the live
+enemies, not argued from the placement rule.
+
+---
+
+## S4e — Distance fade on the grid lines
+- status: todo
+- depends: S4c
+- gate: at one fixed camera pose, against a control shot of the **same pose at the previous
+  commit**, a `--rows` sweep down the frame shows the far band losing the grid on two channels —
+  `delta.luma_mean` clearly negative **and** `delta.distinct_colours` clearly negative — while
+  the near band moves on neither; in the same far band `hue_frac.orange` is **unchanged**, which
+  is what proves the fade took the grid and left the contours; and the fade distances are read
+  back as uniforms off the live material by `resource_path` and value, not inferred from the
+  picture. Every threshold sits between two measured numbers.
+
+**What is wanted:** the triplanar grid fades out with distance from the player, so the far field
+stops producing artifacts. **The contour lines stay** — they are the half of the look that reads
+as a map, and they already have their own flat-ground fade. Suggested radius ~150 m, but the
+number is a feel dial: the gate tests that the mechanism works, not that 150 is right.
+
+**Where it lives.** `terrain/shaders/heightmap_terrain.gdshader`. `grid_line()` computes distance
+to the nearest line on one plane; `fragment()` sums three of them triplanar-blended into `lines`
+(the `wp.yz` / `wp.xz` / `wp.xy` calls). `grid_scale` is **4.0** world units per cell, so 150 m
+is ~37 cells out. The contours are a separate quantity, `contours`, built by `contour_band()`
+from world Y alone — the two are already independent in the fragment, which is why this change
+is small.
+
+**Distance from the camera, not from the player node.** The artifact is a screen-space
+phenomenon: `grid_line()` antialiases with `fwidth()`, and past some depth a 4 m cell projects
+to well under a pixel and the fade cannot keep up with the aliasing. The chase camera follows the
+tank closely enough that camera distance is the right measure and the only one the fragment stage
+can get cheaply — `INV_VIEW_MATRIX[3].xyz` is the camera's world position. Do **not** plumb the
+player's transform in as a uniform to make the wording of this entry literally true.
+
+**One decision the session must make explicitly, because both readings are defensible.** `lines`
+feeds three outputs — `ALBEDO`, `EMISSION` and `ROUGHNESS`. Fading the whole quantity makes far
+ground settle to `base_color` (0.02, 0.03, 0.06) and read as dark; fading only the `EMISSION`
+term leaves the albedo grid drawn but unlit. The default is to fade the whole quantity — it is
+the one that actually removes the artifact rather than dimming it — but say which was chosen and
+why, and note that the rim light and the height ramp are separate terms that must not fade with
+it or the horizon loses its silhouette.
+
+**The other shader, which is the seam this touches.** `terrain/shaders/neon_terrain.gdshader` is
+the voxel renderer's, and its own header says the fragment half of the heightmap shader is "kept
+deliberately identical so the world looks the same after the renderer changed underneath it".
+Only the heightmap one is live. Changing one and not the other breaks that stated relationship,
+so either change both or record the divergence in both headers — do not leave it unstated.
+
+**Measuring it, since a fade is exactly the shape that looks done and is not.** The grid is
+`grid_color` (0, 0.85, 1.0) — hue ~189°, the **cyan** bucket; the contours are (1.0, 0.62, 0.16)
+— hue ~33°, the **orange** bucket, and both buckets exist in `check_render.py`. But the height
+ramp mixes `grid_color` toward `peak_color` magenta with world Y, so a line's hue depends on how
+high the ground is and `hue_frac.cyan` alone is not a reliable grid detector across a whole
+frame. That is why the gate leads on `luma_mean` and `distinct_colours` — moiré is *many*
+distinct colours, and a faded band is few — and uses orange only as the control that must not
+move.
+
+**Sweep across the feature, not along it.** `CLAUDE.md § Testing requirements` warns that a
+column sweep of iso-Y contour lines measures terrain shape and calls it banding. Distance from
+the camera varies **vertically** on screen, so this is a `--rows` sweep; a `--columns` one
+resolves nothing here.
+
+**No S8 work falls out of this.** Shader uniforms are already live-tunable through the editor's
+Remote inspector, which is the whole premise of that session — the fade distances arrive tunable
+without being converted from anything.
+
+**Not in this session:** touching the contour fade, the flat-ground relief fade
+(`CONTOUR_RELIEF_MIN`/`FULL`), fog, or anything that changes the look inside the fade radius.
+
+---
+
 ## S5 — Hand-authoring affordance
 - status: todo
 - depends: S4c
