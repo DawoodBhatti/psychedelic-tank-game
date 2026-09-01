@@ -815,15 +815,82 @@ off, which is exactly what `DamageProfile.min_damage_fraction` exists to prevent
 ---
 
 ## S4c — The red tanks: patrol, aggro, leash
-- status: in-progress
+- status: done
 - depends: S4b
-- gate: an unaggroed enemy's distance from its patrol centre stays within its radius across 300
-  physics frames; with the player placed in the open inside its sight range the state flips to
-  engaging, and with the player at the **same range but behind terrain** it does not — that
-  pair is what proves the check is a raycast and not a distance test; at 3× the radius the
-  state returns to patrolling and the enemy's position comes back inside the circle; one
-  `apply_damage(Shell.damage)` flips `is_alive` false and decrements `enemies_alive`;
-  `collision_layer` and `collision_mask` re-measured off every live enemy body.
+- landed: 2026-09-01, Reviewer-verified on its own coordinates rather than the Doer's.
+  **The raycast pair, which is the session's real content, is proved two ways.** A ground target
+  at flat **150.0** on bearing +Z gives `can_see` **false**; the same flat **150.0** on bearing +X
+  gives **true** — identical range, opposite answers. Purer control: the *same XZ point* at ground
+  level vs **+400 m up** — flat range byte-identical, **false** then **true**, so only the
+  sightline differs. The range gate is real too: clear air at flat 250 is **false** against
+  `sight_range` **200**.
+  **The state machine consults the predicate.** Checked through `_update_state()` — the shipping
+  function `_physics_process` calls — rather than by reusing the Doer's route: `patrolling`, aggro
+  **0** → player at blocked 150.0 → **`patrolling`**, aggro **0** → player at open 150.0 →
+  **`engaging`**, `aggro_transitions` **1**, `main.gd enemy_aggro_transitions` **1**. All 593 lines
+  read for the forbidden shapes: **no** `set_target_position()`, no externally-callable
+  `evaluate_state()`, no gate-only entry point. `target` is a plain var wired by
+  `main.gd::_wire_enemies()`.
+  **Patrol:** 300 physics frames, `max_patrol_excursion` **47.68** of radius **110**,
+  `patrol_clearance()` **+62.32**, `patrol_fence_stops` **0**, `patrolling` throughout. That run
+  never approached the boundary, so the fence was exercised adversarially: a tank placed at
+  **106.700** at terminal speed outward gave stops 0 → **1**, excursion **109.862**, clearance
+  **+0.1376**, then closed to 108.289.
+  **Leash and hysteresis:** `leash_range()` **330** = 3 × 110; `should_leash` **false** at 326,
+  **true** at 334; → **`patrolling`**, `leash_transitions` **1**. A player then put back in plain
+  view at 150 (`can_see` true) leaves it **still `patrolling`**, aggro still 1 — no chatter.
+  **One hit kills, and the two counters are genuinely separate.** `profile.resource_path` =
+  `res://entities/profiles/enemy_tank.tres`, `max_health` **20.0**, `armour` **0.0**,
+  `hits_to_kill()` **1**. One `apply_damage(Shell.damage)`: health 20 → **0**, `is_alive`
+  **false**, `enemies_alive` **4 → 3**, `enemies_total` **4**, bar `fill_fraction` **0.0**,
+  **`towers_alive` unmoved**. And the converse, which is the diff's real regression risk: 4 × 20
+  on `tower_0` leaves `towers_alive` **6** at `crack_stage` **0.8**, the fifth gives `is_alive`
+  **false** / `towers_alive` **5** / stage **1.0**, with `enemies_alive` **unmoved at 4**. S4's
+  gate still holds *through* the new shared `SkinSlot.geometry()`, so that deletion is exercised
+  rather than merely compiled.
+  **Collision, re-measured off every live enemy body:** all four layer **8**, mask **35**
+  (TERRAIN|PLAYER|STRUCTURES); tower unchanged at layer 32 / mask 0; `shell.hit_mask` **41** with
+  `hit_mask & 2 = 0`, so **PLAYER absent**. Reserved bits by absence: OR over **12** live bodies'
+  layers and masks = **43**, and `43 & 20 = 0`, plus a source read confirming no reference to
+  `PLAYER_SHELLS`/`ENEMY_SHELLS` outside `CollisionLayers.gd`.
+  **Red by reference, not by value:** `skin.material_source()` and all five mesh nodes'
+  `material_override.resource_path` = `res://entities/materials/enemy_tank.tres`.
+  **Feel shared, not re-typed:** `EnemyTank`'s consts equal `Tank`'s exactly (FORWARD_DRIVE 26.0,
+  TURN_RATE 95.0, DRAG_COEFF 0.055) — see the S8 note below, which this creates. Measured terminal
+  speed **21.31** m/s against `sqrt(FORWARD_DRIVE/DRAG_COEFF)` **21.74**.
+  Spawning: 10 placed / 0 failures, `min_spawn_clearance` **28.018** (unchanged from S4),
+  `min_ground_clearance` **0.6**, `min_health_bar_clearance` **1.95 → 0.93** (the enemy's bar sits
+  closer to its hull than the tower's; still positive).
+  Tests 1–6: `script_errors=0`, `check_resources PASS {"checked":19,"failed":[]}`, **zero errors
+  and zero warnings**, fps **min 106 avg 118.6 max 120**, load **2.46 s**. Visual gated between
+  measured numbers rather than a guessed threshold: tank box `hue_frac.red` **0.7971** against
+  **three** equal-sized control boxes at **0.0000**. `.claude/images/review-s4c-enemy0.png`.
+- unverified: **"the enemy's position comes back inside the circle" is NOT closed by measurement,
+  and cannot be in this harness.** `move_and_slide()` ignores the delta passed to a hand-called
+  `_physics_process(dt)` and uses the engine's own — with `velocity = (0,0,-20)` one bare
+  `move_and_slide()` moved the body **0.1547 units = 7.7 ms**, not the 16.6 ms handed in. So 300
+  hand ticks apply ~5 s of thrust and produce ~2.3 s of travel, and a 90-unit traverse would need
+  ~1400 expressions; a tank displaced to **200.0** from its centre reached **199.833** over 60
+  ticks. What *is* verified is the mechanism: `_steer_target()` returns `patrol_centre`
+  **exactly**, yaw swings the full **93°** TURN_RATE predicts over 60 ticks, and the radial
+  velocity component is **−2.43 m/s (closing)**. **Read the containment number above in that
+  light** — 300 frames is ~2.3 s of travel, a weaker sample than the name suggests.
+  Nothing was exercised through gameplay input and no shell was flown by the engine.
+- also noted: **splash reaches neither tank, and the "for free" claim in this section's own text
+  below is false.** Under Jolt, `intersect_shape()` does not report `CharacterBody3D` while
+  `intersect_ray()` does: `_damageables_in_blast()` returns **0** at an enemy's origin, **0** at
+  its hull centre, **1** at a tower's. Direct hits are unaffected — a live shell at velocity
+  (−300,0,0) with one `_physics_process(0.2)` took an enemy **20.0 → 0.0** with
+  `terrain.crater_count()` still **0**, so the ray struck the body and not the ground.
+  **Pre-existing, not caused here:** the player's own untouched `CharacterBody3D` is equally
+  invisible to the blast query. So splash reaches the towers and nothing else, and **nothing can
+  hurt the player in play yet** — S4b expected S4c to close that, and it does not, because
+  enemies that shoot back were explicitly out of scope. Three comments asserting the opposite were
+  corrected before the commit; see
+  `.claude/learnings/2026-08-31-jolt-intersect-shape-drops-characterbody3d.md`. Any later session
+  wanting area damage on a character needs a replacement for `intersect_shape`.
+  No enemy respawn on level reset (deliberate, matching Tower's wreck). `_contained` is
+  deliberately not cleared when a patrolling enemy is displaced by anything other than aggro.
 
 **What is wanted:** a few enemy tanks — our tank, entirely red — each roaming a circular patch.
 Come within their line of sight and they aggro and drive at you. Retreat to 3× the patrol radius
@@ -1050,7 +1117,8 @@ actually doing once rather than asserting.
   `tank.tscn` stores none of them, so the script default stays the single source; setting one
   through `set()` moves a behavioural consequence rather than only the stored value; and
   `Shell.NOMINAL_DAMAGE` still reads through `get_script_constant_map()` with
-  `Tower.hits_to_kill()` still returning **5**.
+  `Tower.hits_to_kill()` still returning **5** and `EnemyTank.hits_to_kill()` still returning
+  **1** (S4c added the second derived count; both read the same const the same way).
 
 **What is wanted:** the ability to change how the tank feels while the game runs. **This session
 builds no UI at all** — it is the half of that problem which turns out to be free, and it is
@@ -1085,6 +1153,19 @@ panel is optional.
   and not dials in any sense. `CLAUDE.md § Code standards` calls them load-bearing.
 - `Tower.STAGE_EPSILON` — a correctness guard, not a feel dial. Exposing it invites setting it to
   0.5, which silently breaks crack staging.
+
+**A fourth one arrived with S4c, and it is three of the twelve dials above.** *Added 2026-09-01.*
+`entities/enemy_tank.gd:96-98` reads the drive constants **off the class with no instance** —
+`const FORWARD_DRIVE := Tank.FORWARD_DRIVE`, and the same for `TURN_RATE` and `DRAG_COEFF` — so a
+red tank accelerates, turns and coasts exactly like the player's and a retune moves both. That is
+the same shape as `Shell.NOMINAL_DAMAGE` above and it breaks the same way: an `@export var` cannot
+be read off a class, so converting these three does not misbehave quietly, it **fails test 1**.
+The good failure, but still a blocker on the three dials the enemy's feel is made of, and this
+session must decide rather than discover it. Either leave them `const` — the enemy keeps the
+player's feel, and neither is live-tunable — or convert them and give `EnemyTank` its own
+`@export`s seeded from the same numbers, which makes both tunable and free to drift apart, which
+may be exactly what is wanted for an enemy. What is **not** allowed is converting them and
+leaving `enemy_tank.gd` unedited.
 
 **The migration cost, which is real and is part of this session.** `CLAUDE.md § The dev harness`
 documents that the harness can read `const`s via `get_script_constant_map()`, which plain `get()`
